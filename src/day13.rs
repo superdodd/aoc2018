@@ -1,12 +1,11 @@
 use aoc_runner_derive::{aoc, aoc_generator};
-use std::fmt;
-use std::mem::replace;
-use std::cmp::Ordering;
 use num_traits::FromPrimitive;
-use std::fmt::Formatter;
-use std::fmt::Error;
 use std::cmp::min;
-
+use std::cmp::Ordering;
+use std::fmt;
+use std::fmt::Error;
+use std::fmt::Formatter;
+use std::mem::replace;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
 enum Direction {
@@ -41,7 +40,7 @@ impl Cart {
                 'v' => Direction::DOWN,
                 '>' => Direction::RIGHT,
                 '<' => Direction::LEFT,
-                _ => panic!("Invalid cart character: {}", c)
+                _ => panic!("Invalid cart character: {}", c),
             },
             turnState: TurnState::LEFT,
         }
@@ -72,7 +71,7 @@ impl Ord for Cart {
             r @ Some(_) => r.unwrap(),
             None => {
                 if self.direction == other.direction {
-                    return self.turnState.cmp(&other.turnState)
+                    return self.turnState.cmp(&other.turnState);
                 }
                 self.direction.cmp(&other.direction)
             }
@@ -103,7 +102,7 @@ fn check_collision(carts: &Vec<Cart>, i: usize) -> Option<usize> {
     let y = carts[i].y;
     for (j, cart) in carts.iter().enumerate() {
         if i == j {
-            continue
+            continue;
         }
         if cart.x == x && cart.y == y {
             return Some(j);
@@ -124,7 +123,10 @@ impl Map {
                 Direction::DOWN => 'v',
             }
         }
-        outmap.iter().map(|l| l.iter().collect::<String>() + "\n").collect()
+        outmap
+            .iter()
+            .map(|l| l.iter().collect::<String>() + "\n")
+            .collect()
     }
 
     fn from_u8array(input: &[u8]) -> Map {
@@ -181,7 +183,8 @@ impl Map {
                     Direction::RIGHT => cart.x += 1,
                 }
                 // Turn the cart if needed.
-                cart.direction = match (self.map[cart.y as usize][cart.x as usize], cart.direction) {
+                cart.direction = match (self.map[cart.y as usize][cart.x as usize], cart.direction)
+                {
                     ('/', Direction::UP) => Direction::RIGHT,
                     ('/', Direction::RIGHT) => Direction::UP,
                     ('/', Direction::DOWN) => Direction::LEFT,
@@ -200,21 +203,24 @@ impl Map {
                         };
                         match t {
                             TurnState::LEFT => match cart.direction {
-                            Direction::UP => Direction::LEFT,
-                            Direction::LEFT => Direction::DOWN,
-                            Direction::DOWN => Direction::RIGHT,
-                            Direction::RIGHT => Direction::UP,
-                            }
+                                Direction::UP => Direction::LEFT,
+                                Direction::LEFT => Direction::DOWN,
+                                Direction::DOWN => Direction::RIGHT,
+                                Direction::RIGHT => Direction::UP,
+                            },
                             TurnState::RIGHT => match cart.direction {
                                 Direction::UP => Direction::RIGHT,
                                 Direction::RIGHT => Direction::DOWN,
                                 Direction::DOWN => Direction::LEFT,
                                 Direction::LEFT => Direction::UP,
-                            }
+                            },
                             TurnState::STRAIGHT => cart.direction,
                         }
                     }
-                    (_, _) => panic!("Invalid map state '{}': cart={}", self.map[cart.y as usize][cart.x as usize], cart)
+                    (_, _) => panic!(
+                        "Invalid map state '{}': cart={}",
+                        self.map[cart.y as usize][cart.x as usize], cart
+                    ),
                 };
                 x = cart.x;
                 y = cart.y;
@@ -222,9 +228,7 @@ impl Map {
             }
             // Each time we move a cart, we need to check for collisions.
             let c = match check_collision(&self.carts, i) {
-                Some(j) if !clear_collisions => {
-                    Some(self.carts[min(i, j)].clone())
-                }
+                Some(j) if !clear_collisions => Some(self.carts[min(i, j)].clone()),
                 Some(j) => {
                     // Don't advance i in this case...
                     self.carts.remove(j);
@@ -296,7 +300,11 @@ mod tests {
             },
             "Incorrect first cart"
         );
-        assert_eq!(std::str::from_utf8(INPUT).expect("Invalid UTF8 input"), map.get_map(), "Invalid input")
+        assert_eq!(
+            std::str::from_utf8(INPUT).expect("Invalid UTF8 input"),
+            map.get_map(),
+            "Invalid input"
+        )
     }
 
     #[test]
@@ -312,7 +320,16 @@ mod tests {
         println!("Crash next...");
         let c = map.update(false);
         println!("{}", map);
-        assert_eq!(Some(Cart {x: 7, y: 3, direction: Direction::DOWN, turnState: TurnState::RIGHT}), c, "Didn't see expected collision")
+        assert_eq!(
+            Some(Cart {
+                x: 7,
+                y: 3,
+                direction: Direction::DOWN,
+                turnState: TurnState::RIGHT
+            }),
+            c,
+            "Didn't see expected collision"
+        )
     }
 
     #[test]
@@ -326,17 +343,44 @@ mod tests {
         }
 
         assert_eq!(1, map.carts.len(), "Wrong number of carts left");
-        assert_eq!((6, 4), (map.carts[0].x, map.carts[0].y), "Wrong location for last cart")
-
+        assert_eq!(
+            (6, 4),
+            (map.carts[0].x, map.carts[0].y),
+            "Wrong location for last cart"
+        )
     }
 
     #[test]
     fn test_check_collision() {
         let inputs = &vec![
-            (vec![Cart::new(0, 0, '>' as u8), Cart::new(0, 1, 'v' as u8), Cart::new(0, 1, '^' as u8)], 1, Some(2)),
-            (vec![Cart::new(0, 0, '>' as u8), Cart::new(0, 1, 'v' as u8), Cart::new(0, 1, '^' as u8)], 2, Some(1)),
-            (vec![Cart::new(0, 0, '>' as u8), Cart::new(0, 1, 'v' as u8), Cart::new(0, 2, '^' as u8)], 1, None),
-            ];
+            (
+                vec![
+                    Cart::new(0, 0, '>' as u8),
+                    Cart::new(0, 1, 'v' as u8),
+                    Cart::new(0, 1, '^' as u8),
+                ],
+                1,
+                Some(2),
+            ),
+            (
+                vec![
+                    Cart::new(0, 0, '>' as u8),
+                    Cart::new(0, 1, 'v' as u8),
+                    Cart::new(0, 1, '^' as u8),
+                ],
+                2,
+                Some(1),
+            ),
+            (
+                vec![
+                    Cart::new(0, 0, '>' as u8),
+                    Cart::new(0, 1, 'v' as u8),
+                    Cart::new(0, 2, '^' as u8),
+                ],
+                1,
+                None,
+            ),
+        ];
         for (i, t) in inputs.iter().enumerate() {
             assert_eq!(check_collision(&t.0, t.1), t.2)
         }
