@@ -3,7 +3,6 @@ use num_traits::FromPrimitive;
 use std::cmp::min;
 use std::cmp::Ordering;
 use std::fmt;
-use std::fmt::Error;
 use std::fmt::Formatter;
 use std::mem::replace;
 
