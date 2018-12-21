@@ -1,3 +1,6 @@
+// Deriving FromPrimitive causes a clippy lint error
+#![allow(clippy::useless_attribute)]
+
 use aoc_runner_derive::{aoc, aoc_generator};
 use num_traits::FromPrimitive;
 use std::cmp::min;
@@ -14,7 +17,7 @@ enum Direction {
     LEFT,
 }
 
-#[derive(Debug, Copy, Clone, FromPrimitive, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Debug, FromPrimitive, PartialEq, Eq, Ord, PartialOrd)]
 enum TurnState {
     LEFT,
     STRAIGHT,
@@ -26,7 +29,7 @@ pub struct Cart {
     x: i32,
     y: i32,
     direction: Direction,
-    turnState: TurnState,
+    turn_state: TurnState,
 }
 
 impl Cart {
@@ -41,7 +44,7 @@ impl Cart {
                 '<' => Direction::LEFT,
                 _ => panic!("Invalid cart character: {}", c),
             },
-            turnState: TurnState::LEFT,
+            turn_state: TurnState::LEFT,
         }
     }
 }
@@ -70,7 +73,7 @@ impl Ord for Cart {
             r @ Some(_) => r.unwrap(),
             None => {
                 if self.direction == other.direction {
-                    return self.turnState.cmp(&other.turnState);
+                    return self.turn_state.cmp(&other.turn_state);
                 }
                 self.direction.cmp(&other.direction)
             }
@@ -96,7 +99,7 @@ impl fmt::Display for Map {
     }
 }
 
-fn check_collision(carts: &Vec<Cart>, i: usize) -> Option<usize> {
+fn check_collision(carts: &[Cart], i: usize) -> Option<usize> {
     let x = carts[i].x;
     let y = carts[i].y;
     for (j, cart) in carts.iter().enumerate() {
@@ -169,8 +172,6 @@ impl Map {
 
         let mut i: usize = 0;
         while i < self.carts.len() {
-            let mut x: i32;
-            let mut y: i32;
             // Update each cart state using a mutable reference to the current cart.
             {
                 let mut cart: Cart = self.carts[i];
@@ -195,8 +196,8 @@ impl Map {
                     ('|', Direction::UP) | ('|', Direction::DOWN) => cart.direction,
                     ('-', Direction::LEFT) | ('-', Direction::RIGHT) => cart.direction,
                     ('+', _) => {
-                        let t = cart.turnState;
-                        cart.turnState = match FromPrimitive::from_u8(t as u8 + 1) {
+                        let t = cart.turn_state;
+                        cart.turn_state = match FromPrimitive::from_u8(t as u8 + 1) {
                             Some(t) => t,
                             None => FromPrimitive::from_u8(0).unwrap(),
                         };
@@ -221,13 +222,11 @@ impl Map {
                         self.map[cart.y as usize][cart.x as usize], cart
                     ),
                 };
-                x = cart.x;
-                y = cart.y;
                 self.carts[i] = cart;
             }
             // Each time we move a cart, we need to check for collisions.
             let c = match check_collision(&self.carts, i) {
-                Some(j) if !clear_collisions => Some(self.carts[min(i, j)].clone()),
+                Some(j) if !clear_collisions => Some(self.carts[min(i, j)]),
                 Some(j) => {
                     // Don't advance i in this case...
                     self.carts.remove(j);
@@ -274,7 +273,7 @@ pub fn solve_part2(input: &Map) -> Cart {
         map.update(true);
         //print!("{}", map);
     }
-    map.carts[0].clone()
+    map.carts[0]
 }
 
 #[cfg(test)]
@@ -295,7 +294,7 @@ mod tests {
                 x: 2,
                 y: 0,
                 direction: Direction::RIGHT,
-                turnState: TurnState::LEFT,
+                turn_state: TurnState::LEFT,
             },
             "Incorrect first cart"
         );
@@ -324,7 +323,7 @@ mod tests {
                 x: 7,
                 y: 3,
                 direction: Direction::DOWN,
-                turnState: TurnState::RIGHT
+                turn_state: TurnState::RIGHT
             }),
             c,
             "Didn't see expected collision"
