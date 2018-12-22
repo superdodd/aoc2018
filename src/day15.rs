@@ -5,6 +5,38 @@ use std::fmt::Error;
 use std::fmt::Formatter;
 use std::collections::HashMap;
 
+fn get_adjacent<'a>(x: usize, y: usize) -> &'a [(usize, usize)] {
+    &[(x, y-1), (x-1, y), (x+1, y), (x, y+1)]
+}
+
+fn path_compare_keys(p: &[(usize, usize)]) -> (usize, (usize, usize), (usize, usize)) {
+    (
+        p.len(),
+        {
+            let f = p.first().or(Some(&(std::usize::MAX, std::usize::MAX))).unwrap();
+            (f.1, f.0)
+        },
+        {
+            let f = p.last().or(Some(&(std::usize::MAX, std::usize::MAX))).unwrap();
+            (f.1, f.0)
+        }
+    )
+}
+
+fn compare_paths(a: &[(usize, usize)], b: &[(usize, usize)]) -> Ordering {
+    match path_compare_keys(a).cmp(&path_compare_keys(b)) {
+        Ordering::Equal => {
+            // Paths are same length and have same start and end points.  Find the first nonequal
+            // elements along the two paths return the comparison between those elements.
+            match a.iter().zip(b.iter()).find(|(&a, &b)| a != b) {
+                Some((a, b)) => (a.1, a.0).cmp(&(b.1, b.0)),
+                None => Ordering::Equal,
+            }
+        }
+        o => o,
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct MapState {
     map: Vec<Vec<char>>,
@@ -41,35 +73,37 @@ impl MapState {
 
     fn find_adjacent_target(&self, i: usize) -> Option<(usize, usize)> {
         let e = &self.entities[i];
-        for (x, y) in [
-            (e.x, e.y - 1),
-            (e.x - 1, e.y),
-            (e.x + 1, e.y),
-            (e.x, e.y + 1),
-        ]
-        .iter()
-        {
-            let d = self.map[*y][*x];
+        for (&x, &y) in get_adjacent(e.x, e.y) {
+            let d = self.map[y][x];
             if d == 'G' || d == 'E' && d != e.entity_type {
-                return Some((*x, *y));
+                return Some((x, y));
             }
         }
         None
     }
 
+    // Find the shortest unobstructed path between the source and destination.
+    fn find_shortest_path(&self, src: (usize, usize), dst: (usize, usize)) -> &[(usize, usize)] {
+
+    }
+
     fn move_toward_enemy(&mut self, i: usize) {
         let map = self.get_map_with_entities();
-        println!("{}", self);
-        let mut to_check: Vec<(usize, usize)> = vec![(self.entities[i].y, self.entities[i].x)];
-        let target_type = if self.entities[i].entity_type == 'G' {
-            'E'
-        } else {
-            'G'
+        let mut me = self.entities[i];
+        let target_type = match me.entity_type {
+            'E' => 'G',
+            'G' => 'E',
         };
-        let mut visited: Vec<(usize, usize)> = Vec::new();
-        let mut found_paths: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
-        let mut shortest_path: Option<Vec<(usize, usize)>> = None;
-        found_paths.insert((self.entities[i].y, self.entities[i].x), Vec::new());
+
+        // First, find all open squares adjacent to targets
+        let destinations = self.entities.iter().enumerate()
+            .filter(|(&j, &o)| i != j && o.entity_type != me.entity_type);
+
+        // Next, find the shortest path to each destination
+        let paths = destinations.map();
+
+        let mut to_check: Vec<(usize, usize)> = vec![(me.x, me.y)];
+
         while !to_check.is_empty() {
             let candidate = to_check.remove(0);
             println!("Checking: {:?} ({:?})", candidate, to_check);
@@ -256,6 +290,26 @@ mod tests {
                 atk: 3
             }
         );
+    }
+
+    #[test]
+    fn test_compare_paths() {
+        //  Paths, in descending order
+        let test_paths: Vec<Vec<(usize, usize)>> = vec![
+            vec![(0, 0), (1, 0), (1, 1), (2, 1), (1, 1)],
+            vec![(0, 0), (1, 0), (2, 0), (2, 1), (1, 1)],
+            vec![(0, 0), (0, 1), (1, 1)],
+            vec![(0, 0), (1, 0), (1, 1)]
+        ];
+
+        for i in 0..test_paths.len()-1 {
+            for j in i+1..test_paths.len() {
+                assert_eq!(Ordering::Greater, compare_paths(test_paths[i].as_slice(), test_paths[j].as_slice()));
+                assert_eq!(Ordering::Less, compare_paths(test_paths[j].as_slice(), test_paths[i].as_slice()));
+                assert_eq!(Ordering::Equal, compare_paths(test_paths[i].as_slice(), test_paths[i].as_slice()));
+                assert_eq!(Ordering::Equal, compare_paths(test_paths[j].as_slice(), test_paths[j].as_slice()));
+            }
+        }
     }
 
     #[test]
