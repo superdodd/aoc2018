@@ -89,7 +89,7 @@ mod tests {
     #[test]
     fn test_example() {
         let mut state = State::new(&vec![3usize, 7usize], 2);
-        for step in 0..14 {
+        for _i in 0..14 {
             state.make_recipe();
             for (i, s) in state.scoreboard.iter().enumerate() {
                 if state.current_recipes[0] == i {

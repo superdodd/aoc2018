@@ -309,7 +309,7 @@ mod tests {
     fn part1_example_solve() {
         let mut map = parse(INPUT).clone();
 
-        for i in 0..13 {
+        for _i in 0..13 {
             let c = map.update(false);
             println!("{}", map);
             assert_eq!(None, c, "Unexpected collision");
@@ -335,7 +335,7 @@ mod tests {
         let mut map = parse(INPUT2).clone();
         println!("Original map\n{}", map);
 
-        for i in 0..3 {
+        for _i in 0..3 {
             map.update(true);
             println!("{}", map);
         }
@@ -379,7 +379,7 @@ mod tests {
                 None,
             ),
         ];
-        for (i, t) in inputs.iter().enumerate() {
+        for (_i, t) in inputs.iter().enumerate() {
             assert_eq!(check_collision(&t.0, t.1), t.2)
         }
     }
