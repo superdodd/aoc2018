@@ -1,29 +1,46 @@
 use aoc_runner_derive::{aoc, aoc_generator};
+use std::cmp::max;
+use std::cmp::min;
 use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fmt;
 use std::fmt::Error;
 use std::fmt::Formatter;
-use std::collections::HashMap;
 
-fn get_adjacent<'a>(x: usize, y: usize) -> &'a [(usize, usize)] {
-    &[(x, y-1), (x-1, y), (x+1, y), (x, y+1)]
+fn get_adjacent(x: usize, y: usize) -> Vec<(usize, usize)> {
+    Vec::from(vec![(x, y - 1), (x - 1, y), (x + 1, y), (x, y + 1)])
 }
 
-fn path_compare_keys(p: &[(usize, usize)]) -> (usize, (usize, usize), (usize, usize)) {
+fn get_adjacent_open(x: usize, y: usize, map: &Vec<Vec<char>>) -> Vec<(usize, usize)> {
+    get_adjacent(x, y)
+        .iter()
+        .filter(|(x, y)| map[*y][*x] == '.')
+        .map(|x| x.to_owned())
+        .collect()
+}
+
+fn path_compare_keys(p: &Vec<(usize, usize)>) -> (usize, (usize, usize), (usize, usize)) {
     (
         p.len(),
         {
-            let f = p.first().or(Some(&(std::usize::MAX, std::usize::MAX))).unwrap();
+            let f = p
+                .first()
+                .or(Some(&(std::usize::MAX, std::usize::MAX)))
+                .unwrap();
             (f.1, f.0)
         },
         {
-            let f = p.last().or(Some(&(std::usize::MAX, std::usize::MAX))).unwrap();
+            let f = p
+                .last()
+                .or(Some(&(std::usize::MAX, std::usize::MAX)))
+                .unwrap();
             (f.1, f.0)
-        }
+        },
     )
 }
 
-fn compare_paths(a: &[(usize, usize)], b: &[(usize, usize)]) -> Ordering {
+fn compare_paths(a: &Vec<(usize, usize)>, b: &Vec<(usize, usize)>) -> Ordering {
     match path_compare_keys(a).cmp(&path_compare_keys(b)) {
         Ordering::Equal => {
             // Paths are same length and have same start and end points.  Find the first nonequal
@@ -71,111 +88,139 @@ impl MapState {
         out
     }
 
-    fn find_adjacent_target(&self, i: usize) -> Option<(usize, usize)> {
+    fn entity_index_at(&self, x: usize, y: usize) -> Option<usize> {
+        self.entities
+            .iter()
+            .enumerate()
+            .find(|(_i, e)| e.x == x && e.y == y)
+            .map(|(i, _e)| i)
+    }
+
+    fn find_adjacent_target(&self, i: usize) -> Option<usize> {
         let e = &self.entities[i];
-        for (&x, &y) in get_adjacent(e.x, e.y) {
+        for (x, y) in get_adjacent(e.x, e.y) {
             let d = self.map[y][x];
             if d == 'G' || d == 'E' && d != e.entity_type {
-                return Some((x, y));
+                let ret = self.entity_index_at(x, y);
+                assert_ne!(None, ret);
+                return ret;
             }
         }
         None
     }
 
-    // Find the shortest unobstructed path between the source and destination.
-    fn find_shortest_path(&self, src: (usize, usize), dst: (usize, usize)) -> &[(usize, usize)] {
-
-    }
-
-    fn move_toward_enemy(&mut self, i: usize) {
+    // Find the shortest unobstructed path from the source to the destination.
+    fn find_shortest_path(
+        &self,
+        src: &(usize, usize),
+        dst: &(usize, usize),
+    ) -> Option<Vec<(usize, usize)>> {
         let map = self.get_map_with_entities();
-        let mut me = self.entities[i];
-        let target_type = match me.entity_type {
-            'E' => 'G',
-            'G' => 'E',
-        };
 
-        // First, find all open squares adjacent to targets
-        let destinations = self.entities.iter().enumerate()
-            .filter(|(&j, &o)| i != j && o.entity_type != me.entity_type);
-
-        // Next, find the shortest path to each destination
-        let paths = destinations.map();
-
-        let mut to_check: Vec<(usize, usize)> = vec![(me.x, me.y)];
-
+        let mut to_check = Vec::from(get_adjacent_open(src.0, src.1, &map));
+        let mut partial_paths: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
         while !to_check.is_empty() {
             let candidate = to_check.remove(0);
-            println!("Checking: {:?} ({:?})", candidate, to_check);
-            let path = found_paths.get(&candidate).expect("No path").to_vec();
-            if map[candidate.0][candidate.1] == target_type {
-                // We found a path to an enemy.  Check to see if it's "better" than any we have
-                // found already
-                println!("Candidate path: {:?}", path);
-                shortest_path = match shortest_path {
-                    None => {
-                        println!("NEW");
-                        Some(path.to_vec())
-                    },
-                    Some(s) => {
-                        // If this path is shorter, use it
-                        match path.len().cmp(&s.len()) {
-                            Ordering::Less => {
-                                println!("SHORTER");
-                                Some(path.to_vec())
-                            }
-                            Ordering::Greater => Some(s),
-                            Ordering::Equal => {
-                                // If paths are the same length, earlier-in-order target is preferable
-                                match path.last().unwrap().cmp(s.last().unwrap()) {
-                                    Ordering::Less => {
-                                        println!("BETTER TARGET");
-                                        Some(path.to_vec())
-                                    }
-                                    Ordering::Greater => Some(s),
-                                    // If paths are the same length to the same target, earlier-in-order first
-                                    // step is preferable
-                                    Ordering::Equal => match path.first().unwrap().cmp(s.first().unwrap()) {
-                                        Ordering::Less => {
-                                            println!("BETTER STEP");
-                                            Some(path.to_vec())
-                                        }
-                                        Ordering::Greater | Ordering::Equal => Some(s),
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            let path_to_candidate = partial_paths
+                .entry(candidate)
+                .or_insert(Vec::from(vec![candidate]))
+                .clone();
+
+            if candidate == *dst {
+                return Some(path_to_candidate.to_owned());
             }
-            for (x, y) in &[
-                (candidate.1, candidate.0 - 1),
-                (candidate.1 - 1, candidate.0),
-                (candidate.1 + 1, candidate.0),
-                (candidate.1, candidate.0 + 1),
-            ] {
-                if visited.contains(&(*y, *x)) {
-                    continue;
-                }
-                if map[*y][*x] == target_type || map[*y][*x] == '.' {
-                    let mut new_path = path.to_vec();
-                    new_path.push((*y, *x));
-                    found_paths.insert((*y, *x), new_path);
-                    if !to_check.contains(&(*y, *x)) {
-                        to_check.push((*y, *x));
-                    }
-                }
+
+            for next_step in get_adjacent_open(candidate.0, candidate.1, &map) {
+                partial_paths
+                    .entry(next_step)
+                    .or_insert(path_to_candidate.to_owned())
+                    .push(next_step);
+                to_check.push(next_step);
             }
-            visited.push(candidate);
-            println!("Done visiting {:?} Left: {:?}", candidate, to_check);
         }
-        match shortest_path {
-            None => println!("Done with search; no enemy found. Visited: {:?}", visited),
+        // Didn't find a path to the destination
+        None
+    }
+
+    fn move_toward_enemy(&mut self, i: usize) -> bool {
+        let map = self.get_map_with_entities();
+        let me = self.entities[i];
+
+        // Find all target entities, and the (unique) open squares adjacent to them
+        // Then calculate the best path to each open square
+        // And finally get the best path among the best paths
+        let best_path = self
+            .entities
+            .iter()
+            .enumerate()
+            .filter(|(j, o)| i != *j && o.entity_type != me.entity_type)
+            .flat_map(|(_j, o)| get_adjacent_open(o.x, o.y, &map))
+            .collect::<HashSet<(usize, usize)>>()
+            .iter()
+            .filter_map(|d| self.find_shortest_path(&(me.x, me.y), d))
+            .min_by(compare_paths);
+        println!("{:?} -> path {:?}", me, best_path);
+
+        // If such a path exists, move along it.
+        match best_path {
+            None => false,
             Some(p) => {
-                self.entities[i].x = p.first().unwrap().1;
-                self.entities[i].y = p.first().unwrap().0;
+                self.entities
+                    .get_mut(i)
+                    .unwrap()
+                    .take_step(*p.first().unwrap());
+                true
             }
         }
+    }
+
+    // Execute a turn for the given entity index.
+    fn entity_turn(&mut self, i: usize) -> bool {
+        println!("Taking turn: {}", self.entities[i]);
+        // First search for adjacent targets to attack.
+        let mut attack_target = self.find_adjacent_target(i);
+        if attack_target.is_some() {
+            println!("Adjacent (attacking) {}", self.entities[attack_target.unwrap()]);
+        }
+        // If no target found, try to move...
+        if attack_target.is_none() {
+            // If no moves, end turn without doing anything.
+            if !self.move_toward_enemy(i) {
+                return false;
+            }
+            // If we did move, find a new target to attack.
+            attack_target = self.find_adjacent_target(i);
+        }
+        // If we have a target in range, hit them!
+        if attack_target.is_some() {
+            self.entities.get_mut(attack_target.unwrap()).unwrap().hp -= 3;
+        }
+        true
+    }
+
+    // Execute a full round of turns
+    fn execute_round(&mut self) -> bool {
+        let mut i: usize = 0;
+        let mut combat_continues = true;
+        self.entities.sort_by(|a, b| ((a.y, a.x)).cmp(&(b.y, b.x)));
+        while i < self.entities.len() && combat_continues {
+            // Entity i takes its turn
+            combat_continues = self.entity_turn(i);
+            // Find any dead entities and remove them from the list
+            // before taking the next turn.
+            let j = self.entities
+                .iter()
+                .enumerate()
+                .find(|(_j, e)| e.hp <= 0).map(|(j, _e)| j);
+            j.map(|j| {
+                self.entities.remove(j);
+                if j < i {
+                    i -= 1;
+                }
+            });
+            i += 1;
+        }
+        combat_continues
     }
 
     fn parse(input: &str) -> MapState {
@@ -219,7 +264,6 @@ struct Entity {
     x: usize,
     y: usize,
     hp: i32,
-    atk: i32,
 }
 
 impl Entity {
@@ -229,8 +273,16 @@ impl Entity {
             y,
             entity_type,
             hp: 200,
-            atk: 3,
         }
+    }
+
+    fn take_step(&mut self, p: (usize, usize)) {
+        assert_eq!(
+            1,
+            (max(p.0, self.x) - min(p.0, self.x)) + (max(p.1, self.y) - min(p.1, self.y))
+        );
+        self.x = p.0;
+        self.y = p.1;
     }
 }
 
@@ -238,8 +290,8 @@ impl fmt::Display for Entity {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         write!(
             f,
-            "{}:({:2},{:2}) {:3}/{}",
-            self.entity_type, self.x, self.y, self.hp, self.atk
+            "{}:({:2},{:2}) {:3}",
+            self.entity_type, self.x, self.y, self.hp
         )?;
         Ok(())
     }
@@ -253,12 +305,11 @@ impl PartialOrd for Entity {
 
 impl Ord for Entity {
     fn cmp(&self, other: &Self) -> Ordering {
-        (self.y, self.x, self.entity_type, self.hp, self.atk).cmp(&(
+        (self.y, self.x, self.entity_type, self.hp).cmp(&(
             other.y,
             other.x,
             other.entity_type,
             other.hp,
-            other.atk,
         ))
     }
 }
@@ -266,6 +317,19 @@ impl Ord for Entity {
 #[aoc_generator(day15)]
 pub fn parse_input(input: &str) -> MapState {
     MapState::parse(input)
+}
+
+#[aoc(day15, part1)]
+pub fn solve_part1(map: &MapState) -> i32 {
+    let mut map: MapState = map.to_owned();
+    let mut score = 0;
+    let mut round = 0;
+    while map.execute_round() {
+        println!("{}", map);
+        round += 1;
+        score = round * map.entities.iter().fold(0, |acc, e| acc + e.hp);
+    }
+    score
 }
 
 #[cfg(test)]
@@ -287,7 +351,6 @@ mod tests {
                 y: 1,
                 entity_type: 'G',
                 hp: 200,
-                atk: 3
             }
         );
     }
@@ -299,15 +362,27 @@ mod tests {
             vec![(0, 0), (1, 0), (1, 1), (2, 1), (1, 1)],
             vec![(0, 0), (1, 0), (2, 0), (2, 1), (1, 1)],
             vec![(0, 0), (0, 1), (1, 1)],
-            vec![(0, 0), (1, 0), (1, 1)]
+            vec![(0, 0), (1, 0), (1, 1)],
         ];
 
-        for i in 0..test_paths.len()-1 {
-            for j in i+1..test_paths.len() {
-                assert_eq!(Ordering::Greater, compare_paths(test_paths[i].as_slice(), test_paths[j].as_slice()));
-                assert_eq!(Ordering::Less, compare_paths(test_paths[j].as_slice(), test_paths[i].as_slice()));
-                assert_eq!(Ordering::Equal, compare_paths(test_paths[i].as_slice(), test_paths[i].as_slice()));
-                assert_eq!(Ordering::Equal, compare_paths(test_paths[j].as_slice(), test_paths[j].as_slice()));
+        for i in 0..test_paths.len() - 1 {
+            for j in i + 1..test_paths.len() {
+                assert_eq!(
+                    Ordering::Greater,
+                    compare_paths(&test_paths[i], &test_paths[j])
+                );
+                assert_eq!(
+                    Ordering::Less,
+                    compare_paths(&test_paths[j], &test_paths[i])
+                );
+                assert_eq!(
+                    Ordering::Equal,
+                    compare_paths(&test_paths[i], &test_paths[i])
+                );
+                assert_eq!(
+                    Ordering::Equal,
+                    compare_paths(&test_paths[j], &test_paths[j])
+                );
             }
         }
     }
@@ -319,11 +394,23 @@ mod tests {
         assert_eq!(
             map.entities[0],
             Entity {
-                x: 6,
+                x: 2,
                 y: 1,
                 entity_type: 'E',
                 hp: 200,
-                atk: 3,
-            });
+            }
+        );
+    }
+
+    #[test]
+    fn test_part1_solution() {
+        let Inputs = [
+            ("#######\n#G..#E#\n#E#E.E#\n#G.##.#\n#...#E#\n#...E.#\n#######\n", 36334)
+        ];
+
+        for (i, t) in Inputs.iter().enumerate() {
+            let map = MapState::parse(t.0);
+            assert_eq!(t.1, solve_part1(&map));
+        }
     }
 }
