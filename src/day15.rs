@@ -97,16 +97,12 @@ impl MapState {
     }
 
     fn find_adjacent_target(&self, i: usize) -> Option<usize> {
-        let e = &self.entities[i];
-        for (x, y) in get_adjacent(e.x, e.y) {
-            let d = self.map[y][x];
-            if d == 'G' || d == 'E' && d != e.entity_type {
-                let ret = self.entity_index_at(x, y);
-                assert_ne!(None, ret);
-                return ret;
-            }
-        }
-        None
+        let e = self.entities[i];
+        get_adjacent(e.x, e.y).iter()
+            .filter_map(|(x, y)| self.entity_index_at(*x, *y).and_then(|i| Some((i, self.entities[i]))))
+            .filter(|(_j, o)| e.entity_type != o.entity_type)
+            .min_by(|a, b| a.1.hp.cmp(&b.1.hp))
+            .and_then(|(j, _o)| Some(j))
     }
 
     // Find the shortest unobstructed path from the source to the destination.
@@ -116,11 +112,12 @@ impl MapState {
         dst: &(usize, usize),
     ) -> Option<Vec<(usize, usize)>> {
         let map = self.get_map_with_entities();
-
+        let mut visited: Vec<(usize, usize)> = Vec::new();
         let mut to_check = Vec::from(get_adjacent_open(src.0, src.1, &map));
         let mut partial_paths: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
         while !to_check.is_empty() {
             let candidate = to_check.remove(0);
+            visited.push(candidate);
             let path_to_candidate = partial_paths
                 .entry(candidate)
                 .or_insert(Vec::from(vec![candidate]))
@@ -130,12 +127,13 @@ impl MapState {
                 return Some(path_to_candidate.to_owned());
             }
 
-            for next_step in get_adjacent_open(candidate.0, candidate.1, &map) {
+            for next_step in get_adjacent_open(candidate.0, candidate.1, &map)
+                .iter().filter(|p| !visited.contains(*p)) {
                 partial_paths
-                    .entry(next_step)
+                    .entry(*next_step)
                     .or_insert(path_to_candidate.to_owned())
-                    .push(next_step);
-                to_check.push(next_step);
+                    .push(*next_step);
+                to_check.push(*next_step);
             }
         }
         // Didn't find a path to the destination
@@ -159,53 +157,49 @@ impl MapState {
             .iter()
             .filter_map(|d| self.find_shortest_path(&(me.x, me.y), d))
             .min_by(compare_paths);
-        println!("{:?} -> path {:?}", me, best_path);
 
         // If such a path exists, move along it.
         match best_path {
             None => false,
             Some(p) => {
-                self.entities
-                    .get_mut(i)
-                    .unwrap()
-                    .take_step(*p.first().unwrap());
+                let step = *p.first().unwrap();
+                //println!("{:?} -> {:?}", self.entities[i], step);
+                {
+                    let e = &mut self.entities[i];
+                    e.take_step(step);
+                }
                 true
             }
         }
     }
 
     // Execute a turn for the given entity index.
-    fn entity_turn(&mut self, i: usize) -> bool {
-        println!("Taking turn: {}", self.entities[i]);
+    fn entity_turn(&mut self, i: usize) {
         // First search for adjacent targets to attack.
-        let mut attack_target = self.find_adjacent_target(i);
-        if attack_target.is_some() {
-            println!("Adjacent (attacking) {}", self.entities[attack_target.unwrap()]);
-        }
-        // If no target found, try to move...
-        if attack_target.is_none() {
-            // If no moves, end turn without doing anything.
-            if !self.move_toward_enemy(i) {
-                return false;
+        // If no target found, try to move and then find another target.
+        // If we have a target, attack it.
+        match self.find_adjacent_target(i) {
+            None => {
+                self.move_toward_enemy(i);
+                self.find_adjacent_target(i)
             }
-            // If we did move, find a new target to attack.
-            attack_target = self.find_adjacent_target(i);
-        }
-        // If we have a target in range, hit them!
-        if attack_target.is_some() {
-            self.entities.get_mut(attack_target.unwrap()).unwrap().hp -= 3;
-        }
-        true
+            t => t,
+        }.map(|t| {
+            //println!("{:?} attacking {:?}", self.entities[i], self.entities[t]);
+            {
+                let e = &mut self.entities[t];
+                e.hp -= 3;
+            }
+        });
     }
 
-    // Execute a full round of turns
+    // Execute a full round of turns.  Returns false if the round ends early.
     fn execute_round(&mut self) -> bool {
         let mut i: usize = 0;
-        let mut combat_continues = true;
         self.entities.sort_by(|a, b| ((a.y, a.x)).cmp(&(b.y, b.x)));
-        while i < self.entities.len() && combat_continues {
+        while i < self.entities.len() {
             // Entity i takes its turn
-            combat_continues = self.entity_turn(i);
+            self.entity_turn(i);
             // Find any dead entities and remove them from the list
             // before taking the next turn.
             let j = self.entities
@@ -219,8 +213,13 @@ impl MapState {
                 }
             });
             i += 1;
+            // If there are no enemies left but not everyone has had their turn, end the round early.
+            if i < self.entities.len() &&
+                !self.entities.iter().any(|e| e.entity_type != self.entities[i].entity_type) {
+                return false;
+            }
         }
-        combat_continues
+        true
     }
 
     fn parse(input: &str) -> MapState {
@@ -322,13 +321,16 @@ pub fn parse_input(input: &str) -> MapState {
 #[aoc(day15, part1)]
 pub fn solve_part1(map: &MapState) -> i32 {
     let mut map: MapState = map.to_owned();
-    let mut score = 0;
     let mut round = 0;
     while map.execute_round() {
-        println!("{}", map);
         round += 1;
-        score = round * map.entities.iter().fold(0, |acc, e| acc + e.hp);
+        //println!("Round {}\n{}", round, map);
+        if round > 1000 {
+            break
+        }
     }
+    let score = round * map.entities.iter().fold(0, |acc, e| acc + e.hp);
+    println!("Round {}, score: {} map:\n{}", round, score, map);
     score
 }
 
@@ -405,12 +407,19 @@ mod tests {
     #[test]
     fn test_part1_solution() {
         let Inputs = [
+            ("#######\n#.G...#\n#...EG#\n#.#.#G#\n#..G#E#\n#.....#\n#######\n", 27730),
             ("#######\n#G..#E#\n#E#E.E#\n#G.##.#\n#...#E#\n#...E.#\n#######\n", 36334)
         ];
 
         for (i, t) in Inputs.iter().enumerate() {
             let map = MapState::parse(t.0);
+            println!("{}\n{}", i, map);
             assert_eq!(t.1, solve_part1(&map));
         }
+    }
+
+    #[test]
+    fn test_in_place_modify() {
+        let mut _map = MapState::parse(TEST_INPUT_1);
     }
 }
