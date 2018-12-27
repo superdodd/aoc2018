@@ -4,9 +4,7 @@ use regex::Regex;
 use std::fmt;
 use std::fmt::Error;
 use std::fmt::Formatter;
-use std::collections::HashMap;
 use std::collections::HashSet;
-use std::iter::FromIterator;
 
 /*
 Addition:
@@ -141,7 +139,7 @@ fn parse_input(input: &str) -> (Vec<Part1TestCase>, Vec<Vec<i32>>) {
 
     let mut part2_ret: Vec<Vec<i32>> = Vec::new();
     for l in input[end..].lines() {
-        if l.len() == 0 {
+        if l.is_empty() {
             continue
         }
         part2_ret.push(l.split_whitespace().map(|d| d.parse::<i32>().unwrap()).collect::<Vec<i32>>());
@@ -169,7 +167,7 @@ fn solve_part1(input: &(Vec<Part1TestCase>, Vec<Vec<i32>>)) -> i32 {
     total
 }
 
-fn assign_code(constraints: &Vec<HashSet<OpType>>, assigned_list: &[Option<OpType>], unassigned_list: &[OpType]) -> Option<Vec<OpType>> {
+fn assign_code(constraints: &[HashSet<OpType>], assigned_list: &[Option<OpType>], unassigned_list: &[OpType]) -> Option<Vec<OpType>> {
     //println!("Assigned: {:?}\nUnassigned:{:?}", assigned_list, unassigned_list);
     if unassigned_list.is_empty() {
         return Some(assigned_list.iter().map(|o| o.unwrap()).collect::<Vec<OpType>>());
@@ -203,7 +201,7 @@ fn solve_part2(input: &(Vec<Part1TestCase>, Vec<Vec<i32>>)) -> i32 {
     }
     println!("{:#?}", incompatible_ops);
 
-    let code_map = match assign_code(&incompatible_ops, &[None; 16], get_all_opcodes().as_slice()) {
+    let code_map = match assign_code(incompatible_ops.as_slice(), &[None; 16], get_all_opcodes().as_slice()) {
         Some(m) => m,
         None => panic!("Unable to build code map"),
     };
