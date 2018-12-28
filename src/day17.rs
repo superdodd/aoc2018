@@ -1,9 +1,9 @@
 use aoc_runner_derive::{aoc, aoc_generator};
 use regex::Regex;
-use std::cmp::{min,max};
+use std::cmp::{max, min};
 use std::fmt;
-use std::fmt::Formatter;
 use std::fmt::Error;
+use std::fmt::Formatter;
 
 #[derive(Clone)]
 struct MapState {
@@ -19,29 +19,27 @@ impl MapState {
     fn simulate(&mut self) {
         // Start processing at the source block
         let mut update_queue: Vec<(usize, usize)> = vec![(self.source, 0)];
-        
+
         while let Some((x, y)) = update_queue.pop() {
             //println!("Updating {:?} - {}", (x, y), update_queue.len());
             match self.at(x, y) {
                 '+' | '|' => {
                     if self.can_fall(x, y) {
-                        if y+1 < self.yrange {
-                            if self.at(x, y+1) == '.' {
-                                update_queue.push((x, y + 1));
-                                self.m[y + 1][x] = '|';
-                            }
+                        if y + 1 < self.yrange && self.at(x, y + 1) == '.' {
+                            update_queue.push((x, y + 1));
+                            self.m[y + 1][x] = '|';
                         }
                     } else {
                         // Fill the contained row if possible
                         let mut fill_is_still = false;
                         // Check left...
-                        let mut xleft = x-1;
+                        let mut xleft = x - 1;
                         loop {
                             let c = self.at(xleft, y);
                             if c == '|' {
                                 // If we encounter any falling water, keep looking for walls, but
                                 // see if we need to update the row above as well
-                                update_queue.push((xleft, y-1));
+                                update_queue.push((xleft, y - 1));
                             }
                             if c == '#' {
                                 fill_is_still = true;
@@ -63,7 +61,7 @@ impl MapState {
                             if c == '|' {
                                 // If we encounter any falling water, keep looking for walls, but
                                 // see if we need to update the row above as well
-                                update_queue.push((xright, y-1));
+                                update_queue.push((xright, y - 1));
                             }
                             if c == '#' {
                                 xright -= 1;
@@ -81,7 +79,7 @@ impl MapState {
                         }
                         if fill_is_still {
                             // Need to check the next row up to see if we also need to fill
-                            update_queue.push((x, y-1));
+                            update_queue.push((x, y - 1));
                         } else {
                             // Check the ends to see if either one should continue falling
                             if self.can_fall(xleft, y) {
@@ -97,7 +95,7 @@ impl MapState {
                 c => {
                     println!("{}", self);
                     panic!("Invalid map state {} at ({}, {})", c, x, y)
-                },
+                }
             }
             //println!("{:?}", update_queue);
             update_queue.sort();
@@ -106,7 +104,9 @@ impl MapState {
     }
 
     fn can_fall(&self, x: usize, y: usize) -> bool {
-        self.get(x, y+1).map(|c| c == '.' || c == '|').unwrap_or(true)
+        self.get(x, y + 1)
+            .map(|c| c == '.' || c == '|')
+            .unwrap_or(true)
     }
 
     fn at(&self, x: usize, y: usize) -> char {
@@ -151,7 +151,14 @@ impl MapState {
 
 impl fmt::Display for MapState {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        writeln!(f, "x=({},{}) y=({},{})", self.xmin, self.xmin+self.xrange, self.ymin, self.ymin+self.yrange)?;
+        writeln!(
+            f,
+            "x=({},{}) y=({},{})",
+            self.xmin,
+            self.xmin + self.xrange,
+            self.ymin,
+            self.ymin + self.yrange
+        )?;
         for l in &self.m {
             writeln!(f, "{}", l.iter().collect::<String>())?;
         }
@@ -168,7 +175,8 @@ fn parse(input: &str) -> MapState {
         let nums = &vec![
             c[3].parse::<usize>().unwrap(),
             c[4].parse::<usize>().unwrap(),
-            c[5].parse::<usize>().unwrap()];
+            c[5].parse::<usize>().unwrap(),
+        ];
         let r = match (c.get(1), c.get(2)) {
             (Some(_x), None) => (nums[0], nums[0], nums[1], nums[2]),
             (None, Some(_y)) => (nums[1], nums[2], nums[0], nums[0]),
@@ -177,10 +185,22 @@ fn parse(input: &str) -> MapState {
         ranges.push(r);
     }
 
-    let limits: (usize, usize, usize, usize) = ranges.iter()
-        .fold((std::usize::MAX, std::usize::MIN, std::usize::MAX, std::usize::MIN),
-               |acc, (xmin, xmax, ymin, ymax)|
-                   (min(acc.0, *xmin), max(acc.1, *xmax), min(acc.2, *ymin), max(acc.3, *ymax)));
+    let limits: (usize, usize, usize, usize) = ranges.iter().fold(
+        (
+            std::usize::MAX,
+            std::usize::MIN,
+            std::usize::MAX,
+            std::usize::MIN,
+        ),
+        |acc, (xmin, xmax, ymin, ymax)| {
+            (
+                min(acc.0, *xmin),
+                max(acc.1, *xmax),
+                min(acc.2, *ymin),
+                max(acc.3, *ymax),
+            )
+        },
+    );
 
     let xmin = limits.0 - 1;
     let source = 500 - xmin;
@@ -194,11 +214,18 @@ fn parse(input: &str) -> MapState {
     for r in ranges {
         for y in r.2..=r.3 {
             for x in r.0..=r.1 {
-                m[y-ymin][x-xmin] = '#';
+                m[y - ymin][x - xmin] = '#';
             }
         }
     }
-    MapState{m, xmin, xrange, ymin, yrange, source}
+    MapState {
+        m,
+        xmin,
+        xrange,
+        ymin,
+        yrange,
+        source,
+    }
 }
 
 #[aoc(day17, part1)]
@@ -221,8 +248,7 @@ mod tests {
     use super::*;
 
     fn get_test_input() -> MapState {
-        let test_parse_input =
-           "x=495, y=2..7
+        let test_parse_input = "x=495, y=2..7
             y=7, x=495..501
             x=501, y=3..7
             x=498, y=2..4
@@ -234,7 +260,7 @@ mod tests {
         println!("{}", map);
         map
     }
-    
+
     #[test]
     fn test_parse() {
         let map = get_test_input();
@@ -248,8 +274,7 @@ mod tests {
     }
 
     fn get_loop_input() -> MapState {
-        let test_parse_input =
-           "x=495, y=5..10
+        let test_parse_input = "x=495, y=5..10
             x=505, y=5..10
             y=10, x=495..505
             x=500, y=7..8";

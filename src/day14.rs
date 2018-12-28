@@ -34,21 +34,25 @@ impl State {
 
     fn make_recipe(&mut self) {
         // Get sum of all current recipes
-        let score: usize = self.current_recipes.iter()
+        let score: usize = self
+            .current_recipes
+            .iter()
             .fold(0usize, |acc, i| acc + self.scoreboard[*i]);
         // Add the digits of the sum to the scoreboard
         self.scoreboard.extend(number_to_digits(score));
 
         // Advance each player the correct number of recipes
         for i in 0..self.current_recipes.len() {
-            self.current_recipes[i] = (self.current_recipes[i] + self.scoreboard[self.current_recipes[i]] + 1) % self.scoreboard.len();
+            self.current_recipes[i] =
+                (self.current_recipes[i] + self.scoreboard[self.current_recipes[i]] + 1)
+                    % self.scoreboard.len();
         }
     }
 }
 
 #[aoc(day14, part1)]
 pub fn solve_part1(_input: &str) -> String {
-    let mut state= State::new(&[3usize, 7], 2);
+    let mut state = State::new(&[3usize, 7], 2);
 
     let target_scoreboard_num: usize = 681_901;
 
@@ -57,8 +61,12 @@ pub fn solve_part1(_input: &str) -> String {
     }
 
     String::from_utf8(
-        state.scoreboard[target_scoreboard_num..target_scoreboard_num+10]
-            .iter().map(|c| (*c + '0' as usize) as u8).collect()).expect("Invalid UTF8!")
+        state.scoreboard[target_scoreboard_num..target_scoreboard_num + 10]
+            .iter()
+            .map(|c| (*c + '0' as usize) as u8)
+            .collect(),
+    )
+    .expect("Invalid UTF8!")
 }
 
 fn find_index_of_slice(match_slice: &[usize]) -> usize {
@@ -69,7 +77,7 @@ fn find_index_of_slice(match_slice: &[usize]) -> usize {
         while state.scoreboard.len() <= i + match_slice.len() {
             state.make_recipe();
         }
-        if &state.scoreboard[i..i+match_slice.len()] == match_slice {
+        if &state.scoreboard[i..i + match_slice.len()] == match_slice {
             return i;
         } else {
             i += 1;
@@ -104,7 +112,7 @@ mod tests {
             }
             println!();
         }
-        assert_eq!([5,1,5,8,9,1,6,7,7,9], state.scoreboard[9..19])
+        assert_eq!([5, 1, 5, 8, 9, 1, 6, 7, 7, 9], state.scoreboard[9..19])
     }
 
     #[test]
@@ -113,6 +121,5 @@ mod tests {
         assert_eq!(5, find_index_of_slice(&[0, 1, 2, 4, 5]));
         assert_eq!(18, find_index_of_slice(&[9, 2, 5, 1, 0]));
         assert_eq!(2018, find_index_of_slice(&[5, 9, 4, 1, 4]));
-
     }
 }

@@ -1,10 +1,10 @@
 use aoc_runner_derive::{aoc, aoc_generator};
 
 use regex::Regex;
+use std::collections::HashSet;
 use std::fmt;
 use std::fmt::Error;
 use std::fmt::Formatter;
-use std::collections::HashSet;
 
 /*
 Addition:
@@ -59,7 +59,24 @@ enum OpType {
 }
 
 fn get_all_opcodes() -> Vec<OpType> {
-    vec![OpType::ADDR, OpType::ADDI, OpType::MULR, OpType::MULI, OpType::BANR, OpType::BANI, OpType::BORR, OpType::BORI, OpType::SETR, OpType::SETI, OpType::GTIR, OpType::GTRI, OpType::GTRR, OpType::EQIR, OpType::EQRI, OpType::EQRR]
+    vec![
+        OpType::ADDR,
+        OpType::ADDI,
+        OpType::MULR,
+        OpType::MULI,
+        OpType::BANR,
+        OpType::BANI,
+        OpType::BORR,
+        OpType::BORI,
+        OpType::SETR,
+        OpType::SETI,
+        OpType::GTIR,
+        OpType::GTRI,
+        OpType::GTRR,
+        OpType::EQIR,
+        OpType::EQRI,
+        OpType::EQRR,
+    ]
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -77,12 +94,7 @@ impl fmt::Display for Part1TestCase {
         writeln!(
             f,
             "{:?}, {:?} {:?} -> {:?} = {:?} -> {:?}",
-            self.opcode_raw,
-            self.op_rega,
-            self.op_regb,
-            self.op_rego,
-            self.before,
-            self.after
+            self.opcode_raw, self.op_rega, self.op_regb, self.op_rego, self.before, self.after
         )
     }
 }
@@ -140,9 +152,13 @@ fn parse_input(input: &str) -> (Vec<Part1TestCase>, Vec<Vec<i32>>) {
     let mut part2_ret: Vec<Vec<i32>> = Vec::new();
     for l in input[end..].lines() {
         if l.is_empty() {
-            continue
+            continue;
         }
-        part2_ret.push(l.split_whitespace().map(|d| d.parse::<i32>().unwrap()).collect::<Vec<i32>>());
+        part2_ret.push(
+            l.split_whitespace()
+                .map(|d| d.parse::<i32>().unwrap())
+                .collect::<Vec<i32>>(),
+        );
     }
     (part1_ret, part2_ret)
 }
@@ -153,8 +169,18 @@ fn solve_part1(input: &(Vec<Part1TestCase>, Vec<Vec<i32>>)) -> i32 {
     'test: for test_case in &input.0 {
         let mut count: i32 = 0;
         for op in get_all_opcodes() {
-            let out = apply_opcode(op, test_case.op_rega, test_case.op_regb, test_case.op_rego, test_case.before.as_slice());
-            if out.iter().zip(test_case.after.iter()).all(|(a, b)| *a == *b) {
+            let out = apply_opcode(
+                op,
+                test_case.op_rega,
+                test_case.op_regb,
+                test_case.op_rego,
+                test_case.before.as_slice(),
+            );
+            if out
+                .iter()
+                .zip(test_case.after.iter())
+                .all(|(a, b)| *a == *b)
+            {
                 //println!("{:?} -> {:?} {:?} {:?} {:?} -> {:?} <=> {:?}", test_case.before, op, test_case.op_rega, test_case.op_regb, test_case.op_rego, out, test_case.after);
                 count += 1;
             }
@@ -167,17 +193,28 @@ fn solve_part1(input: &(Vec<Part1TestCase>, Vec<Vec<i32>>)) -> i32 {
     total
 }
 
-fn assign_code(constraints: &[HashSet<OpType>], assigned_list: &[Option<OpType>], unassigned_list: &[OpType]) -> Option<Vec<OpType>> {
+fn assign_code(
+    constraints: &[HashSet<OpType>],
+    assigned_list: &[Option<OpType>],
+    unassigned_list: &[OpType],
+) -> Option<Vec<OpType>> {
     //println!("Assigned: {:?}\nUnassigned:{:?}", assigned_list, unassigned_list);
     if unassigned_list.is_empty() {
-        return Some(assigned_list.iter().map(|o| o.unwrap()).collect::<Vec<OpType>>());
+        return Some(
+            assigned_list
+                .iter()
+                .map(|o| o.unwrap())
+                .collect::<Vec<OpType>>(),
+        );
     }
     let op = unassigned_list[0];
     let mut attempt = assigned_list.to_vec();
     for code in 0..16usize {
         if attempt[code].is_none() && !constraints[code].contains(&op) {
             attempt[code] = Some(op);
-            if let Some(assignment) = assign_code(constraints, &attempt.as_slice(), &unassigned_list[1..]) {
+            if let Some(assignment) =
+                assign_code(constraints, &attempt.as_slice(), &unassigned_list[1..])
+            {
                 return Some(assignment);
             }
             attempt[code] = None;
@@ -193,15 +230,29 @@ fn solve_part2(input: &(Vec<Part1TestCase>, Vec<Vec<i32>>)) -> i32 {
 
     for test_case in &input.0 {
         for op in get_all_opcodes() {
-            let out = apply_opcode(op, test_case.op_rega, test_case.op_regb, test_case.op_rego, test_case.before.as_slice());
-            if out.iter().zip(test_case.after.iter()).any(|(a, b)| *a != *b) {
+            let out = apply_opcode(
+                op,
+                test_case.op_rega,
+                test_case.op_regb,
+                test_case.op_rego,
+                test_case.before.as_slice(),
+            );
+            if out
+                .iter()
+                .zip(test_case.after.iter())
+                .any(|(a, b)| *a != *b)
+            {
                 incompatible_ops[test_case.opcode_raw as usize].insert(op);
             }
         }
     }
     println!("{:#?}", incompatible_ops);
 
-    let code_map = match assign_code(incompatible_ops.as_slice(), &[None; 16], get_all_opcodes().as_slice()) {
+    let code_map = match assign_code(
+        incompatible_ops.as_slice(),
+        &[None; 16],
+        get_all_opcodes().as_slice(),
+    ) {
         Some(m) => m,
         None => panic!("Unable to build code map"),
     };
@@ -210,11 +261,16 @@ fn solve_part2(input: &(Vec<Part1TestCase>, Vec<Vec<i32>>)) -> i32 {
     // Run the program
     let mut registers: Vec<i32> = vec![0i32; 4];
     for cmd in &input.1 {
-        registers = apply_opcode(code_map[cmd[0] as usize], cmd[1], cmd[2], cmd[3], &registers);
+        registers = apply_opcode(
+            code_map[cmd[0] as usize],
+            cmd[1],
+            cmd[2],
+            cmd[3],
+            &registers,
+        );
     }
     registers[0]
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -246,7 +302,8 @@ mod tests {
 
     #[test]
     fn test_solve_part1() {
-        let test_case: (Vec<Part1TestCase>, Vec<Vec<i32>>) = parse_input("Before: [3, 2, 1, 1]\n9 2 1 2\nAfter:  [3, 2, 2, 1]");
+        let test_case: (Vec<Part1TestCase>, Vec<Vec<i32>>) =
+            parse_input("Before: [3, 2, 1, 1]\n9 2 1 2\nAfter:  [3, 2, 2, 1]");
         assert_eq!(1, solve_part1(&test_case));
     }
 }

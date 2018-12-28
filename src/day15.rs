@@ -107,8 +107,12 @@ impl MapState {
 
     fn find_adjacent_target(&self, i: usize) -> Option<usize> {
         let e = self.entities[i];
-        get_adjacent(e.x, e.y).iter()
-            .filter_map(|(x, y)| self.entity_index_at(*x, *y).and_then(|i| Some((i, self.entities[i]))))
+        get_adjacent(e.x, e.y)
+            .iter()
+            .filter_map(|(x, y)| {
+                self.entity_index_at(*x, *y)
+                    .and_then(|i| Some((i, self.entities[i])))
+            })
             .filter(|(_j, o)| e.entity_type != o.entity_type)
             .min_by(|a, b| a.1.hp.cmp(&b.1.hp))
             .and_then(|(j, _o)| Some(j))
@@ -148,11 +152,15 @@ impl MapState {
 
             if destinations_to_find.contains(&candidate) {
                 //println!("{:?} -> {:?} = {:?}", src, candidate, path_to_candidate);
-                best_found = best_found.map_or(Some(path_to_candidate.to_owned()), |b| match compare_paths(&path_to_candidate.to_owned(), &b) {
-                    Ordering::Less => Some(path_to_candidate.to_owned()),
-                    Ordering::Equal => panic!("Duplicate paths found"),
-                    _ => Some(b),
-                });
+                best_found =
+                    best_found.map_or(Some(path_to_candidate.to_owned()), |b| match compare_paths(
+                        &path_to_candidate.to_owned(),
+                        &b,
+                    ) {
+                        Ordering::Less => Some(path_to_candidate.to_owned()),
+                        Ordering::Equal => panic!("Duplicate paths found"),
+                        _ => Some(b),
+                    });
                 //println!("Best = {:?}", best_found);
                 destinations_to_find.remove(&candidate);
             }
@@ -176,10 +184,12 @@ impl MapState {
         let me = self.entities[i];
 
         // Find all target entities, and the (unique) open squares adjacent to them
-        let mut targets_unique =
-            self.entities.iter().filter(|e| e.entity_type != me.entity_type)
-                .flat_map(|e| get_adjacent_open(e.x, e.y, &map))
-                .collect::<Vec<(usize, usize)>>();
+        let mut targets_unique = self
+            .entities
+            .iter()
+            .filter(|e| e.entity_type != me.entity_type)
+            .flat_map(|e| get_adjacent_open(e.x, e.y, &map))
+            .collect::<Vec<(usize, usize)>>();
         targets_unique.sort_by(|a, b| (a.1, a.0).cmp(&(b.1, b.0)));
         targets_unique.dedup();
         // Then calculate the best path to any open square.
@@ -233,10 +243,12 @@ impl MapState {
             self.entity_turn(i);
             // Find any dead entities and remove them from the list
             // before taking the next turn.
-            let j = self.entities
+            let j = self
+                .entities
                 .iter()
                 .enumerate()
-                .find(|(_j, e)| e.hp <= 0).map(|(j, _e)| j);
+                .find(|(_j, e)| e.hp <= 0)
+                .map(|(j, _e)| j);
             if let Some(j) = j {
                 if self.all_elves_live && self.entities[j].entity_type == 'E' {
                     return EndState::ElfDied;
@@ -248,8 +260,12 @@ impl MapState {
             };
             i += 1;
             // If there are no enemies left but not everyone has had their turn, end the round early.
-            if i < self.entities.len() &&
-                !self.entities.iter().any(|e| e.entity_type != self.entities[i].entity_type) {
+            if i < self.entities.len()
+                && !self
+                    .entities
+                    .iter()
+                    .any(|e| e.entity_type != self.entities[i].entity_type)
+            {
                 return EndState::NoEnemies;
             }
         }
@@ -378,7 +394,7 @@ pub fn solve_part1(map: &MapState) -> i32 {
 #[aoc(day15, part2)]
 pub fn solve_part2(in_map: &MapState) -> i32 {
     let mut atk_power = 3;
-    let mut round= 0;
+    let mut round = 0;
     let mut state = EndState::ElfDied;
     let mut map: MapState = in_map.to_owned();
     while state == EndState::ElfDied {
@@ -504,11 +520,12 @@ mod tests {
 
     #[test]
     fn test_move() {
-        let mut map = MapState::parse("########\n#....G.#\n#..G...#\n##.....#\n###.E..#\n####...#\n########\n");
+        let mut map = MapState::parse(
+            "########\n#....G.#\n#..G...#\n##.....#\n###.E..#\n####...#\n########\n",
+        );
         println!("{}", map);
         map.execute_round();
         println!("{}", map);
-        assert_eq!((4,2), (map.entities[1].x, map.entities[1].y));
-
+        assert_eq!((4, 2), (map.entities[1].x, map.entities[1].y));
     }
 }
