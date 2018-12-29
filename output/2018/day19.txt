@@ -1,0 +1,53 @@
+
+for r2 = 1; r2 <= 10551383; r2++ {
+    for r4 = 1; r4 <= 10551383; r4++ {
+        if r2 * r4 == 10551383 {
+            r0 += r2
+        }
+    }
+}
+
+
+
+#ip 5
+0:  addi 5 16 5   jmp #17
+
+part 2: r1 = 10551383 ---v
+1:  seti 1 . 2    r2 = 1
+    seti 1 . 4    r4 = 1
+3:  mulr 2 4 3    |
+    eqrr 3 1 3    | if r2 * r4 != r1
+5:  addr 3 5 5    |   r0 += r2
+    addi 5 1 5    |
+    addr 2 0 0    |
+    addi 4 1 4    r4++
+    gtrr 4 1 3    | if r4 > r1
+    addr 5 3 5    |   goto #3
+    seti 2 . 5    |
+    addi 2 1 2    r2++
+    gtrr 2 1 3    | if r2 > r1
+    addr 3 5 5    |   goto #6
+    seti 1 . 5    |
+    mulr 5 5 5    halt
+
+
+17: addi 1 2 1   > r1 += 2 -> r1 = 2
+    mulr 1 1 1   > r1 *= r1 -> r1 = 4
+    mulr 5 1 1   > r1 *= 19 -> r1 = 76
+20: muli 1 11 1  > r1 *= 11 -> r1 = 836
+    addi 3 6 3   > r3 += 6 -> r3 = 6
+    mulr 3 5 3   > r3 *= 22 -> r3 = 132
+    addi 3 15 3  > r3 += 15 -> r3 = 147
+    addr 1 3 1   > r1 += r3 -> r1 = 983
+    r1 = 2*2*19*11 + (6 * 22) + 15 --> r1 = 983
+25: addr 5 0 5   | if r0 == 0
+    seti 0 . 5   |   goto #1
+    setr 5 . 3   > r3 = 27
+    mulr 3 5 3   > r3 *= 28 -> r3 = 756
+    addr 5 3 3   > r3 += 29 -> r3 = 785
+30: mulr 5 3 3   > r3 *= 30
+    muli 3 14 3  > r3 *= 14
+    mulr 3 5 3   > r3 *= 32 --> 10550400
+    addr 1 3 1   r1 = 10551383
+    seti 0 0 0   r0 = 0
+    seti 0 . 5   goto #1
