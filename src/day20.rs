@@ -1,24 +1,31 @@
 use aoc_runner_derive::{aoc_generator, aoc};
 use std::cmp::min;
 use std::cmp::max;
+use std::iter::FromIterator;
+use std::vec::IntoIter;
 
+/*
 #[aoc_generator(day20)]
-fn generate_path_tree(input: &str) -> PathTreeNode {
-    let mut idx: usize = 0;
-    return PathTreeNode::parse_from(input);
+fn generate_path_tree(input: &'static str) -> PathTreeNode<'static> {
+    PathTreeNode::parse_from(input)
 }
+*/
 
 struct PathTreeNode<'a> {
     content: &'a str,
-    children: &'a [PathTreeNode],
+    children: Vec<PathTreeNode<'a>>,
 }
 
-impl PathTreeNode {
+impl<'a> PathTreeNode<'a> {
+    fn iter(&self) -> PathTreeNodeIterator {
+        PathTreeNodeIterator::new(self)
+    }
+
     fn parse_from(input: &str) -> PathTreeNode {
         if input.is_empty() {
             return PathTreeNode {
                 content: "",
-                children: &[],
+                children: Vec::new(),
             };
         }
         let open_paren = input.find('(').unwrap_or(input.len());
@@ -29,35 +36,94 @@ impl PathTreeNode {
             let close_paren = &input[split..].find(')').unwrap_or(input.len());
             return PathTreeNode {
                 content: &input[0..split],
-                children: &[PathTreeNode::parse_from(&input[close_paren + 1..])],
+                children: vec![PathTreeNode::parse_from(&input[close_paren + 1..])],
             };
         } else if open_paren < split {
             // If we hit an open paren first, we need to create one child that starts after each
             // split character within the top level of parens.
             let close_paren = &input[open_paren..].find(')').unwrap_or(input.len());
             let mut paren_level: usize = 0;
-            let mut children: Vec<PathTreeNode> = Vec::new();
-            for i in open_paren + 1..close_paren {
-                match input[i] {
-                    '|' => children.push(PathTreeNode::parse_from(&input[i + 1..])),
+            let mut ret = PathTreeNode {
+                content: &input[0..open_paren],
+                children: Vec::new(),
+            };
+            for (i, c) in input[open_paren + 1..(*close_paren + open_paren)].as_bytes().iter().enumerate() {
+                match *c as char {
+                    '|' => ret.children.push(PathTreeNode::parse_from(&input[i + 1..])),
                     '(' => paren_level += 1,
                     ')' if paren_level == 0 => break,
                     ')' => paren_level -= 1,
                     _ => (),
                 }
             }
-            return PathTreeNode {
-                content: &input[0..open_paren],
-                children: children.as_slice(),
-            }
+            return ret;
         }
+
         // Otherwise, return the rest of the content as a single node.
         return PathTreeNode{
             content: input,
-            children: &[],
+            children: Vec::new(),
         }
     }
 }
+
+struct PathTreeNodeIterator<'a> {
+    stack: Vec<(&'a PathTreeNode<'a>, usize)>,
+}
+
+impl<'a> PathTreeNodeIterator<'a> {
+    fn new(root: &'a PathTreeNode) -> PathTreeNodeIterator<'a> {
+        let mut initial_stack: Vec<(&'a PathTreeNode, usize)> = Vec::new();
+        let mut node = root;
+        loop {
+            initial_stack.push((node, 0));
+            if node.children.is_empty() {
+                break;
+            }
+            node = &node.children[0];
+        }
+        PathTreeNodeIterator{
+            stack: initial_stack,
+        }
+    }
+}
+
+impl<'a> Iterator for PathTreeNodeIterator<'a> {
+    type Item = String;
+    
+    fn next(&mut self) -> Option<<Self as Iterator>::Item> {
+        while !self.stack.is_empty() {
+            // End of the stack is always a leaf node
+            let item = self.stack.pop().map(|item| item.0);
+            let mut ret = String::new();
+            if let Some(i) = item {
+                for &segment in &self.stack {
+                    ret.push_str(segment.0.content);
+                }
+                ret.push_str(i.content);
+            }
+            while !self.stack.is_empty() {
+                // Ensure we keep the top of the stack at a leaf node
+                let (node, child_idx) = self.stack.pop().unwrap();
+                if child_idx + 1 < node.children.len() {
+                    self.stack.push((node, child_idx + 1));
+                    let mut child_node = &node.children[0];
+                    loop {
+                        self.stack.push((child_node, 0));
+                        if child_node.children.is_empty() {
+                            break;
+                        }
+                        child_node = &child_node.children[0];
+                    }
+                    break;
+                }
+            }
+            return Some(ret);
+        }
+        None
+    }
+}
+
 
 fn parse_all_paths(input: &str) -> Vec<String> {
     let mut to_expand: Vec<String> = vec![input.to_owned()];
@@ -119,8 +185,8 @@ fn determine_map_size(path: &str) -> (i32, i32, i32, i32) {
     (xmin, ymin, xmax, ymax)
 }
 
-fn find_map_edges(paths: &Vec<String>) -> (i32, i32, i32, i32) {
-    paths.iter().map(|p| determine_map_size(p))
+fn find_map_edges(paths: &PathTreeNode) -> (i32, i32, i32, i32) {
+    paths.iter().map(|p| determine_map_size(&p))
             .fold((0, 0, 0, 0),
                   |a, r| (min(a.0, r.0), min(a.1, r.1), max(a.2, r.2), max(a.3, r.3)))
 }
@@ -148,6 +214,7 @@ fn print_map(map: &Vec<Vec<Room>>) {
             }).collect::<String>());
     }
 }
+
 #[derive(Default, Clone)]
 struct Room {
     n: Option<bool>,
@@ -157,9 +224,11 @@ struct Room {
 }
 
 #[aoc(day20, part1)]
-fn solve_part1(paths: &Vec<String>) -> usize {
+fn solve_part1(input: &str) -> usize {
+    let root = PathTreeNode::parse_from(input);
+    
     // First, determine how big our map should be.
-    let maprange = find_map_edges(paths);
+    let maprange = find_map_edges(&root);
 
     let mut map: Vec<Vec<Room>> = Vec::with_capacity((maprange.3 - maprange.1 + 3) as usize);
     for _ in 0..map.capacity() {
@@ -169,7 +238,7 @@ fn solve_part1(paths: &Vec<String>) -> usize {
     let xstart = -maprange.0 as usize;
     let ystart = -maprange.1 as usize;
     // Trace out each path to fill in the map.
-    for path in paths {
+    for path in root.iter() {
         let mut x = xstart;
         let mut y = ystart;
         for &c in path.as_bytes().iter() {
@@ -270,7 +339,6 @@ mod tests {
         for (p, &e) in paths.iter().zip(expected.iter()) {
             assert_eq!(e, determine_map_size(&p), "Bad bounds for {}", p);
         }
-        assert_eq!((-2, 0, 1, 1), find_map_edges(&paths));
     }
 
 }
