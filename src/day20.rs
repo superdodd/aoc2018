@@ -1,168 +1,210 @@
 use aoc_runner_derive::aoc;
 use std::cmp::min;
+use std::mem;
 use std::cmp::max;
-use std::rc::Rc;
-use std::fmt;
-use std::fmt::Formatter;
-use std::fmt::Error;
 
-#[derive(Default, Clone, Debug)]
-struct PathIterator {
-    // A reference to the original entire pattern
-    original_input: Rc<String>,
-    // The start and end of this segment
-    start: usize,
-    end: usize,
-    // If this segment has sub-patterns, this represents each.
-    sub_segments: Vec<PathIterator>,
-    // Otherwise this segment matches a set of mutually exclusive alternatives.
-    pattern_alternatives: Vec<PathIterator>,
-    pattern_alternatives_idx: usize,
-    // Store the most recently returned value for future reference.
-    current_pattern: Option<String>,
+#[derive(Debug, PartialEq)]
+enum PathNodeType {
+    Static {
+        input: String,
+        current: Option<String>,
+        next: Option<String>,
+    },
+    Alternatives {
+        input: String,
+        alternatives: Vec<PathNodeType>,
+        alternatives_idx: Option<usize>,
+    },
+    Subsegments {
+        input: String,
+        sub_segments: Vec<PathNodeType>,
+    }
 }
 
-impl PathIterator {
-    fn new(original_input: Rc<String>, start: usize, end: usize) -> PathIterator {
-
-        let mut path_iterator = PathIterator{
-            original_input,
-            start,
-            end,
-            ..PathIterator::default()
-        };
-        path_iterator.compute_alternatives();
-        if path_iterator.pattern_alternatives.is_empty() {
-            path_iterator.compute_sub_segments();
-            if path_iterator.sub_segments.is_empty() {
-                path_iterator.current_pattern = Some(path_iterator.original_input[start..end].to_string());
+impl PathNodeType {
+    /// Given a string, parse the string into a tree-like structure of PathNodeType objects.
+    fn parse(input: &str) -> PathNodeType {
+        let mut paren_level: usize = 0;
+        let mut top_level_alternatives = false;
+        let mut is_static_match = true;
+        for c in input.chars() {
+            match c {
+                '|' if paren_level == 0 => {
+                    top_level_alternatives = true;
+                    is_static_match = false;
+                    break;
+                }
+                '(' => {
+                    paren_level += 1;
+                    is_static_match = false;
+                }
+                ')' => paren_level -= 1,
+                _ => (),
             }
         }
 
-        path_iterator
-    }
+        if is_static_match {
+            return PathNodeType::Static {
+                input: input.to_string(),
+                current: None,
+                next: Some(input.to_string()),
+            };
+        } else if top_level_alternatives {
+            let mut paren_level: usize = 0;
+            let children = input.split(|c: char| {
+                match c {
+                    '|' if paren_level == 0 => true,
+                    '(' => {
+                        paren_level += 1;
+                        false
+                    }
+                    ')' => {
+                        paren_level -= 1;
+                        false
+                    }
+                    _ => false
+                }
+            }).map(|s: &str| PathNodeType::parse(s)).collect::<Vec<PathNodeType>>();
 
-    fn reset(&mut self) {
-        if !self.pattern_alternatives.is_empty() {
-            self.pattern_alternatives_idx = 0;
-        } else if !self.sub_segments.is_empty() {
-            for s in &mut self.sub_segments {
-                s.reset();
+            PathNodeType::Alternatives {
+                input: input.to_string(),
+                alternatives: children,
+                alternatives_idx: None,
             }
         } else {
-            self.current_pattern = Some(self.original_input[self.start..self.end].to_string());
+            let mut paren_level: usize = 0;
+            let mut children = input.split(|c: char| {
+                match c {
+                    '(' => {
+                        paren_level += 1;
+                        paren_level == 1
+                    }
+                    ')' => {
+                        paren_level -= 1;
+                        paren_level == 0
+                    }
+                    _ => false
+                }
+            }).map(|s: &str| PathNodeType::parse(s)).collect::<Vec<PathNodeType>>();
+            // In order to get the correct behavior, we need to "prime" the iterator for all
+            // but the last sub-segments
+            if children.len() > 1 {
+                for i in 0_usize..children.len() - 1 {
+                    children[i].next();
+                }
+            }
+            PathNodeType::Subsegments {
+                input: input.to_string(),
+                sub_segments: children,
+            }
         }
     }
 
-    fn compute_alternatives(&mut self) {
-        let input = &self.original_input.clone()[self.start..self.end];
-        let mut paren_level: usize = 0;
-        let mut segment_start: usize = 0;
-        let mut alternatives = input.chars().enumerate().filter_map(|(i, c)| match c {
-            '|' if paren_level == 0 => {
-                let ret = PathIterator::new(self.original_input.clone(), self.start + segment_start, self.start + i);
-                segment_start = i + 1;
-                Some(ret)
+    /// Resets the state of the iterator to begin iteration again.
+    fn reset(&mut self) {
+        match self {
+            PathNodeType::Static { input, current, next } => {
+                *current = None;
+                *next = Some(input.to_string());
             }
-            '(' => {
-                paren_level += 1;
-                None
+            PathNodeType::Alternatives { alternatives_idx, alternatives, .. } => {
+                *alternatives_idx = None;
+                for mut a in alternatives {
+                    a.reset();
+                }
             }
-            ')' => {
-                paren_level -= 1;
-                None
+            PathNodeType::Subsegments { sub_segments, .. } => {
+                for i in 0..sub_segments.len() {
+                    sub_segments[i].reset();
+                    if i < sub_segments.len() - 1 {
+                        sub_segments[i].next();
+                    }
+                }
             }
-            _ => None,
-        }).collect::<Vec<PathIterator>>();
-        if !alternatives.is_empty()  {
-            // Make sure we include the last segment
-            alternatives.push(PathIterator::new(self.original_input.clone(), self.start + segment_start, self.start + input.len()));
-            self.pattern_alternatives = alternatives;
         }
     }
 
-    fn compute_sub_segments(&mut self) {
-        let input = &self.original_input[self.start..self.end];
-        let mut segment_start: usize = 0;
-        let mut paren_level: usize = 0;
-        let mut sub_segments= input.chars().enumerate().filter_map(|(i, c)| match c {
-            '(' if paren_level > 0 => {
-                paren_level += 1;
-                None
-            }
-            '(' => {
-                let ret = Some(PathIterator::new(self.original_input.clone(), self.start + segment_start, self.start + i));
-                paren_level += 1;
-                segment_start = i + 1;
-                ret
-            }
-            ')' => {
-                paren_level -= 1;
-                if paren_level == 0 {
-                    let ret = Some(PathIterator::new(self.original_input.clone(), self.start + segment_start, self.start + i));
-                    segment_start = i + 1;
-                    ret
+    /// Returns the "current" value of the segment iterator, or None if the iterator has been
+    /// exhausted.  This call will not advance the iterator.
+    fn current(&self) -> Option<String> {
+        match self {
+            PathNodeType::Static { current, .. } => current.clone(),
+            PathNodeType::Alternatives { alternatives, alternatives_idx, .. } => {
+                if let Some(idx) = *alternatives_idx {
+                    if idx >= alternatives.len() {
+                        None
+                    } else {
+                        alternatives[idx].current()
+                    }
                 } else {
                     None
                 }
-            }
-            _ => None,
-        }).collect::<Vec<PathIterator>>();
-        // Make sure we include the last segment
-        if !sub_segments.is_empty() {
-            sub_segments.push(PathIterator::new(self.original_input.clone(), self.start + segment_start, self.start + input.len()));
-            self.sub_segments = sub_segments;
+            },
+            PathNodeType::Subsegments { sub_segments, .. } => {
+                let mut ret = String::new();
+                for s in sub_segments {
+                    if let Some(curr) = s.current() {
+                        ret.push_str(curr.as_str());
+                    } else {
+                        return None;
+                    }
+                }
+                Some(ret)
+            },
         }
+    }
+
+    /// Iterate through all paths, determining the farthest bounds in each direction required.
+    /// Reset the iterator afterward.
+    fn determine_map_edges(&mut self) -> (i32, i32, i32, i32) {
+        let ret = self.map(|p| determine_map_size(&p))
+                    .fold((0, 0, 0, 0),
+                          |a, r| (min(a.0, r.0), min(a.1, r.1), max(a.2, r.2), max(a.3, r.3)));
+        self.reset();
+        ret
     }
 }
 
-impl Iterator for PathIterator {
+impl Iterator for PathNodeType {
     type Item = String;
 
     fn next(&mut self) -> Option<<Self as Iterator>::Item> {
-        // If this segment is a set of alternatives, return the next pattern from the alternatives.
-        if !self.pattern_alternatives.is_empty() {
-            loop {
-                // When alternatives are exhausted, we return None and let
-                // the parent iterator recreate us
-                if self.pattern_alternatives_idx >= self.pattern_alternatives.len() {
-                    return None;
+        match self {
+            PathNodeType::Static { current, next, .. } => {
+                *current = mem::replace(next, None);
+            }
+            PathNodeType::Alternatives { alternatives, alternatives_idx, .. } => {
+                match *alternatives_idx {
+                    None => {
+                        *alternatives_idx = Some(0);
+                        alternatives[0].next();
+                    }
+                    Some(i) => {
+                        let mut j = i;
+                        while j < alternatives.len() {
+                            match alternatives[j].next() {
+                                None => j += 1,
+                                Some(_) => break,
+                            }
+                        }
+                        *alternatives_idx = Some(j);
+                    }
                 }
-
-                match self.pattern_alternatives[self.pattern_alternatives_idx].next() {
-                    Some(item) => {
-                        self.current_pattern = Some(item);
+            }
+            PathNodeType::Subsegments { sub_segments, .. } => {
+                assert!(sub_segments.len() > 0);
+                let mut i: i32 = sub_segments.len() as i32 - 1;
+                while sub_segments[i as usize].next().is_none() {
+                    if i == 0 {
                         break;
                     }
-                    None => self.pattern_alternatives_idx += 1,
+                    sub_segments[i as usize].reset();
+                    sub_segments[i as usize].next();
+                    i -= 1;
                 }
             }
-            return (&self.current_pattern).clone();
-        } else if !self.sub_segments.is_empty() {
-            // Otherwise, construct the matching string from our sub-segments
-            let mut i: usize = self.sub_segments.len() - 1;
-            while self.sub_segments[i].next().is_none() {
-                if i == 0 {
-                    // Exhausted all options for all sub-segments
-                    return None;
-                }
-                i -= 1;
-            }
-            // Re-initialize the exhausted sub-segments.
-            // Iterate each once so we can peek at the first item.
-            for i in i + 1..self.sub_segments.len() {
-                self.sub_segments[i].reset();
-            }
-            let mut ret: String = String::new();
-            for s in self.sub_segments.iter() {
-                ret.push_str(s.current_pattern.as_ref().unwrap().as_str());
-            }
-            self.current_pattern = Some(ret);
-            return (&self.current_pattern).clone();
-        } else {
-            self.current_pattern = None;
-            return None;
         }
+        self.current()
     }
 }
 
@@ -177,9 +219,9 @@ fn determine_map_size(path: &str) -> (i32, i32, i32, i32) {
     for step in path.as_bytes().iter() {
         match *step as char {
             'N' => y += 1,
-            'S' => y -= 1,
             'E' => x += 1,
             'W' => x -= 1,
+            'S' => y -= 1,
             _ => panic!("Bad step: {}", step),
         }
         if x < xmin {
@@ -198,7 +240,7 @@ fn determine_map_size(path: &str) -> (i32, i32, i32, i32) {
     (xmin, ymin, xmax, ymax)
 }
 
-fn find_map_edges(paths: PathIterator) -> (i32, i32, i32, i32) {
+fn find_map_edges(paths: &mut PathNodeType) -> (i32, i32, i32, i32) {
 
     paths.map(|p| determine_map_size(&p))
             .fold((0, 0, 0, 0),
@@ -237,82 +279,52 @@ struct Room {
     w: Option<bool>,
 }
 
-#[aoc(day20, part1)]
+
+//#[aoc(day20, part1, full_parse)]
 fn solve_part1(input: &str) -> usize {
-    let root = PathIterator::new(Rc::new(input.to_string()), 0, input.len());
-    
-    // First, determine how big our map should be.
-    let maprange = find_map_edges(root.clone());
+    let root = PathNodeType::parse(input);
+    root.count()
+}
 
-    let mut map: Vec<Vec<Room>> = Vec::with_capacity((maprange.3 - maprange.1 + 3) as usize);
-    for _ in 0..map.capacity() {
-        map.push(vec![Room::default(); (maprange.2 - maprange.0 + 3) as usize]);
-    }
+#[aoc(day20, part1, walk)]
+fn walk_part1(input: &str) -> usize {
+    // This is a stack of where we should go back to when we start an alternate branch.
+    let mut backtrack_stack: Vec<(i32, i32)> = Vec::new();
 
-    let xstart = -maprange.0 as usize;
-    let ystart = -maprange.1 as usize;
-    // Trace out each path to fill in the map.
-    for path in root {
-        let mut x = xstart;
-        let mut y = ystart;
-        for &c in path.as_bytes().iter() {
-            match c as char {
-                'N' => {
-                    assert_ne!(Some(false), map[y][x].n);
-                    assert_ne!(Some(false), map[y+1][x].s);
-                    map[y][x].n = Some(true);
-                    map[y+1][x].s = Some(true);
-                    y += 1;
-                }
-                'E' => {
-                    assert_ne!(Some(false), map[y][x].e);
-                    assert_ne!(Some(false), map[y][x+1].w);
-                    map[y][x].e = Some(true);
-                    map[y][x+1].w = Some(true);
-                    x += 1;
-                }
-                'S' => {
-                    assert_ne!(Some(false), map[y][x].s);
-                    assert_ne!(Some(false), map[y-1][x].n);
-                    map[y][x].s = Some(true);
-                    map[y-1][x].n = Some(true);
-                    y -= 1;
-                }
-                'W' => {
-                    assert_ne!(Some(false), map[y][x].w);
-                    assert_ne!(Some(false), map[y][x-1].e);
-                    map[y][x].w = Some(true);
-                    map[y][x-1].e = Some(true);
-                    x -= 1;
-                }
-                _ => panic!("Invalid path: {}", c),
+    let mut min_x: i32 = 0;
+    let mut min_y: i32 = 0;
+    let mut max_x: i32 = 0;
+    let mut max_y: i32 = 0;
+    let mut loc= (0, 0);
+    for c in input.chars() {
+        match c {
+            '^' | '$' => (),
+            '(' => backtrack_stack.push(loc),
+            ')' => loc = backtrack_stack.pop().unwrap(),
+            '|' => loc = *backtrack_stack.last().unwrap(),
+            'N' => {
+                loc.1 -= 1;
+                min_y = min(min_y, loc.1);
             }
+            'E' => {
+                loc.0 += 1;
+                max_x = max(max_x, loc.0);
+            }
+            'W' => {
+                loc.0 -= 1;
+                min_x = min(min_x, loc.0);
+            }
+            'S' => {
+                loc.1 += 1;
+                max_y = max(max_y, loc.1);
+            }
+            _ => panic!("Invalid character {}", c),
         }
     }
-
-    for r in 0..map.len() {
-        for c in 0..map[r].len() {
-            let mut room = map[r][c].clone();
-            if room.n.is_none() {
-                room.n = Some(false);
-            }
-            if room.e.is_none() {
-                room.e = Some(false);
-            }
-            if room.s.is_none() {
-                room.s = Some(false);
-            }
-            if room.w.is_none() {
-                room.w = Some(false);
-            }
-            map[r][c] = room;
-        }
-    }
-
-    print_map(&map);
-
+    println!("{:?}", (min_x, min_y, max_x, max_y));
     0
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -320,48 +332,66 @@ mod tests {
 
     #[test]
     fn test_parse() {
-        let input = "N(E|S(W|)N(E|S))W";
-        let mut expected = vec![
-            "NEW",
-            "NSWNEW",
-            "NSWNSW",
-            "NSNEW",
-            "NSNSW"
-        ];
-        let mut output: Vec<String> = Vec::new();
-        let mut root = PathIterator::new(Rc::new(input.to_string()), 0, input.len());
-        println!("{:#?}", root);
-        for i in 0..5 {
-            println!("--- {} ---", i);
-            println!("{:?}", root.next());
-            println!("{:#?}", root);
-        }
-        for i in root {
-        }
-        output.sort();
-        expected.sort();
-        assert_eq!(expected, output);
+        assert_eq!(PathNodeType::parse("NEW"),
+        PathNodeType::Static {
+            input: "NEW".to_string(),
+            current: None,
+            next: Some("NEW".to_string()),
+        });
+        assert_eq!(PathNodeType::parse("N|E(W|)S"),
+        PathNodeType::Alternatives {
+            input: "N|E(W|)S".to_string(),
+            alternatives_idx: None,
+            alternatives: vec![
+                PathNodeType::Static {
+                    input: "N".to_string(),
+                    current: None,
+                    next: Some("N".to_string()),
+                },
+                PathNodeType::Subsegments {
+                    input: "E(W|)S".to_string(),
+                    sub_segments: vec![
+                        PathNodeType::Static {
+                            input: "E".to_string(),
+                            current: Some("E".to_string()),
+                            next: None,
+                        },
+                        PathNodeType::Alternatives {
+                            input: "W|".to_string(),
+                            alternatives_idx: Some(0),
+                            alternatives: vec![
+                                PathNodeType::Static {
+                                    input: "W".to_string(),
+                                    current: Some("W".to_string()),
+                                    next: None,
+                                },
+                                PathNodeType::Static {
+                                    input: "".to_string(),
+                                    current: None,
+                                    next: Some("".to_string())
+                                }
+                            ]
+                        },
+                        PathNodeType::Static {
+                            input: "S".to_string(),
+                            current: None,
+                            next: Some("S".to_string()),
+                        },
+                    ]
+                }
+            ]
+        })
     }
 
     #[test]
-    fn test_map_dimensions() {
-        let paths = vec![
-                    "NEW",
-                    "NSWNEW",
-                    "NSWNSW",
-                    "NSNEW",
-                    "NSNSW"
-                ].iter().map(|&s| String::from(s)).collect::<Vec<String>>();
-        let expected: Vec<(i32, i32, i32, i32)> = vec![
-            (0,0,1,1),
-            (-1, 0, 0, 1),
-            (-2, 0, 0, 1),
-            (0, 0, 1, 1),
-            (-1, 0, 0, 1),
+    fn test_iter() {
+        let cases = vec![
+            ("N|E|W|S", "N,E,W,S"),
+            ("N(E|W|)|S", "NE,NW,N,S"),
+            ("N(E|W)", "NE,NW"),
         ];
-        for (p, &e) in paths.iter().zip(expected.iter()) {
-            assert_eq!(e, determine_map_size(&p), "Bad bounds for {}", p);
+        for (inp, out) in cases {
+            assert_eq!(PathNodeType::parse(inp).collect::<Vec<String>>(), out.split(",").map(|s| s.to_string()).collect::<Vec<String>>());
         }
     }
-
 }
