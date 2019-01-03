@@ -2,6 +2,9 @@ use aoc_runner_derive::aoc;
 use std::cmp::min;
 use std::mem;
 use std::cmp::max;
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
+use std::collections::HashSet;
 
 #[derive(Debug, PartialEq)]
 enum PathNodeType {
@@ -250,33 +253,35 @@ fn find_map_edges(paths: &mut PathNodeType) -> (i32, i32, i32, i32) {
 fn print_map(map: &Vec<Vec<Room>>) {
     for row in map.iter() {
         println!("{}", row.iter().map(|room| match (room.n, room.e, room.s, room.w) {
-                (Some(true), Some(true), Some(true), Some(true)) => '┼',
-                (Some(true), Some(true), Some(true), Some(false)) => '├',
-                (Some(true), Some(true), Some(false), Some(false)) => '└',
-                (Some(true), Some(false), Some(false), Some(false)) => '╵',
-                (Some(false), Some(true), Some(true), Some(true)) => '┬',
-                (Some(true), Some(false), Some(false), Some(true)) => '┘',
-                (Some(false), Some(true), Some(false), Some(false)) => '╶',
-                (Some(false), Some(false), Some(true), Some(true)) => '┐',
-                (Some(false), Some(false), Some(true), Some(false)) => '╷',
-                (Some(false), Some(false), Some(false), Some(true)) => '╴',
-                (Some(false), Some(false), Some(false), Some(false)) => ' ',
-                (Some(true), Some(false), Some(true), Some(true)) => '┤',
-                (Some(true), Some(false), Some(true), Some(false)) => '│',
-                (Some(false), Some(true), Some(false), Some(true)) => '─',
-                (Some(false), Some(true), Some(true), Some(false)) => '┌',
-                (Some(true), Some(true), Some(false), Some(true)) => '┴',
-                _ => panic!("Invalid map state"),
+            (Some(true), Some(true), Some(true), Some(true)) => '┼',
+            (Some(true), Some(true), Some(true), _) => '├',
+            (_, Some(true), Some(true), Some(true)) => '┬',
+            (Some(true), _, Some(true), Some(true)) => '┤',
+            (Some(true), Some(true), _, Some(true)) => '┴',
+
+            (Some(true), Some(true), _, _) => '└',
+            (Some(true), _, _, Some(true)) => '┘',
+            (_, Some(true), Some(true), _) => '┌',
+            (_, _, Some(true), Some(true)) => '┐',
+            (Some(true), _, Some(true), _) => '│',
+            (_, Some(true), _, Some(true)) => '─',
+
+            (Some(true), _, _, _) => '╵',
+            (_, Some(true), _, _) => '╶',
+            (_, _, Some(true), _) => '╷',
+            (_, _, _, Some(true)) => '╴',
+            (_, _, _, _) => ' ',
             }).collect::<String>());
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 struct Room {
     n: Option<bool>,
     e: Option<bool>,
     s: Option<bool>,
     w: Option<bool>,
+    distance: usize,
 }
 
 
@@ -290,6 +295,7 @@ fn solve_part1(input: &str) -> usize {
 fn walk_part1(input: &str) -> usize {
     // This is a stack of where we should go back to when we start an alternate branch.
     let mut backtrack_stack: Vec<(i32, i32)> = Vec::new();
+    let mut rooms: HashMap<(i32, i32), Room> = HashMap::new();
 
     let mut min_x: i32 = 0;
     let mut min_y: i32 = 0;
@@ -303,95 +309,76 @@ fn walk_part1(input: &str) -> usize {
             ')' => loc = backtrack_stack.pop().unwrap(),
             '|' => loc = *backtrack_stack.last().unwrap(),
             'N' => {
+                rooms.entry(loc).or_insert(Room::default()).n = Some(true);
                 loc.1 -= 1;
+                rooms.entry(loc).or_insert(Room::default()).s = Some(true);
                 min_y = min(min_y, loc.1);
+
             }
             'E' => {
+                rooms.entry(loc).or_insert(Room::default()).e = Some(true);
                 loc.0 += 1;
+                rooms.entry(loc).or_insert(Room::default()).w = Some(true);
                 max_x = max(max_x, loc.0);
             }
             'W' => {
+                rooms.entry(loc).or_insert(Room::default()).w = Some(true);
                 loc.0 -= 1;
+                rooms.entry(loc).or_insert(Room::default()).e = Some(true);
                 min_x = min(min_x, loc.0);
             }
             'S' => {
+                rooms.entry(loc).or_insert(Room::default()).s = Some(true);
                 loc.1 += 1;
+                rooms.entry(loc).or_insert(Room::default()).n = Some(true);
                 max_y = max(max_y, loc.1);
             }
             _ => panic!("Invalid character {}", c),
         }
     }
-    println!("{:?}", (min_x, min_y, max_x, max_y));
-    0
+
+/*
+    let mut map: Vec<Vec<Room>> = vec![vec![Room::default(); (max_x - min_x + 1) as usize]; (max_y - min_y + 1) as usize];
+    for (loc, room) in rooms.iter_mut() {
+        map[(loc.1 - min_y) as usize][(loc.0 - min_x) as usize] = room.clone();
+    }
+    print_map(&map);
+*/
+
+    let mut max_distance: usize = 0;
+    let mut to_check: Vec<(i32, i32, usize)> = vec![(0, 0, 0)];
+    let mut checked: HashSet<(i32, i32)> = HashSet::new();
+    while !to_check.is_empty() {
+        let mut start = to_check.pop().unwrap();
+        max_distance = max(max_distance, start.2);
+        let room = rooms.entry((start.0, start.1)).or_insert(Room::default());
+        check_room(&room.n, &mut checked, &mut to_check, (start.0, start.1 - 1, start.2 + 1));
+        check_room(&room.e, &mut checked, &mut to_check, (start.0 + 1, start.1, start.2 + 1));
+        check_room(&room.s, &mut checked, &mut to_check, (start.0, start.1 + 1, start.2 + 1));
+        check_room(&room.w, &mut checked, &mut to_check, (start.0 - 1, start.1, start.2 + 1));
+    }
+    max_distance
 }
 
+fn check_room(door: &Option<bool>, checked: &mut HashSet<(i32, i32)>, to_check: &mut Vec<(i32, i32, usize)>, chk: (i32, i32, usize)) {
+    match door {
+        Some(true) => {
+            if !checked.contains(&(chk.0, chk.1)) {
+                checked.insert((chk.0, chk.1));
+                to_check.push((chk.0, chk.1, chk.2));
+            }
+        },
+        _ => (),
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_parse() {
-        assert_eq!(PathNodeType::parse("NEW"),
-        PathNodeType::Static {
-            input: "NEW".to_string(),
-            current: None,
-            next: Some("NEW".to_string()),
-        });
-        assert_eq!(PathNodeType::parse("N|E(W|)S"),
-        PathNodeType::Alternatives {
-            input: "N|E(W|)S".to_string(),
-            alternatives_idx: None,
-            alternatives: vec![
-                PathNodeType::Static {
-                    input: "N".to_string(),
-                    current: None,
-                    next: Some("N".to_string()),
-                },
-                PathNodeType::Subsegments {
-                    input: "E(W|)S".to_string(),
-                    sub_segments: vec![
-                        PathNodeType::Static {
-                            input: "E".to_string(),
-                            current: Some("E".to_string()),
-                            next: None,
-                        },
-                        PathNodeType::Alternatives {
-                            input: "W|".to_string(),
-                            alternatives_idx: Some(0),
-                            alternatives: vec![
-                                PathNodeType::Static {
-                                    input: "W".to_string(),
-                                    current: Some("W".to_string()),
-                                    next: None,
-                                },
-                                PathNodeType::Static {
-                                    input: "".to_string(),
-                                    current: None,
-                                    next: Some("".to_string())
-                                }
-                            ]
-                        },
-                        PathNodeType::Static {
-                            input: "S".to_string(),
-                            current: None,
-                            next: Some("S".to_string()),
-                        },
-                    ]
-                }
-            ]
-        })
-    }
-
-    #[test]
-    fn test_iter() {
-        let cases = vec![
-            ("N|E|W|S", "N,E,W,S"),
-            ("N(E|W|)|S", "NE,NW,N,S"),
-            ("N(E|W)", "NE,NW"),
-        ];
-        for (inp, out) in cases {
-            assert_eq!(PathNodeType::parse(inp).collect::<Vec<String>>(), out.split(",").map(|s| s.to_string()).collect::<Vec<String>>());
-        }
+    fn test_walks() {
+        let input = "NESWNESW";
+        println!("{}", walk_part1(input));
     }
 }
