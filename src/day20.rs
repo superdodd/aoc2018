@@ -1,156 +1,169 @@
-use aoc_runner_derive::{aoc_generator, aoc};
+use aoc_runner_derive::aoc;
 use std::cmp::min;
 use std::cmp::max;
-use std::iter::FromIterator;
-use std::vec::IntoIter;
+use std::rc::Rc;
+use std::fmt;
+use std::fmt::Formatter;
+use std::fmt::Error;
 
-/*
-#[aoc_generator(day20)]
-fn generate_path_tree(input: &'static str) -> PathTreeNode<'static> {
-    PathTreeNode::parse_from(input)
+#[derive(Default, Clone, Debug)]
+struct PathIterator {
+    // A reference to the original entire pattern
+    original_input: Rc<String>,
+    // The start and end of this segment
+    start: usize,
+    end: usize,
+    // If this segment has sub-patterns, this represents each.
+    sub_segments: Vec<PathIterator>,
+    // Otherwise this segment matches a set of mutually exclusive alternatives.
+    pattern_alternatives: Vec<PathIterator>,
+    pattern_alternatives_idx: usize,
+    // Store the most recently returned value for future reference.
+    current_pattern: Option<String>,
 }
-*/
 
-struct PathTreeNode<'a> {
-    content: &'a str,
-    children: Vec<PathTreeNode<'a>>,
-}
+impl PathIterator {
+    fn new(original_input: Rc<String>, start: usize, end: usize) -> PathIterator {
 
-impl<'a> PathTreeNode<'a> {
-    fn iter(&self) -> PathTreeNodeIterator {
-        PathTreeNodeIterator::new(self)
+        let mut path_iterator = PathIterator{
+            original_input,
+            start,
+            end,
+            ..PathIterator::default()
+        };
+        path_iterator.compute_alternatives();
+        if path_iterator.pattern_alternatives.is_empty() {
+            path_iterator.compute_sub_segments();
+            if path_iterator.sub_segments.is_empty() {
+                path_iterator.current_pattern = Some(path_iterator.original_input[start..end].to_string());
+            }
+        }
+
+        path_iterator
     }
 
-    fn parse_from(input: &str) -> PathTreeNode {
-        if input.is_empty() {
-            return PathTreeNode {
-                content: "",
-                children: Vec::new(),
-            };
-        }
-        let open_paren = input.find('(').unwrap_or(input.len());
-        let split = input.find('|').unwrap_or(input.len());
-        if split < open_paren {
-            // If we hit a split character before any open parens, then we have one child that
-            // starts after the first close-paren we encounter.
-            let close_paren = &input[split..].find(')').unwrap_or(input.len());
-            return PathTreeNode {
-                content: &input[0..split],
-                children: vec![PathTreeNode::parse_from(&input[close_paren + 1..])],
-            };
-        } else if open_paren < split {
-            // If we hit an open paren first, we need to create one child that starts after each
-            // split character within the top level of parens.
-            let close_paren = &input[open_paren..].find(')').unwrap_or(input.len());
-            let mut paren_level: usize = 0;
-            let mut ret = PathTreeNode {
-                content: &input[0..open_paren],
-                children: Vec::new(),
-            };
-            for (i, c) in input[open_paren + 1..(*close_paren + open_paren)].as_bytes().iter().enumerate() {
-                match *c as char {
-                    '|' => ret.children.push(PathTreeNode::parse_from(&input[i + 1..])),
-                    '(' => paren_level += 1,
-                    ')' if paren_level == 0 => break,
-                    ')' => paren_level -= 1,
-                    _ => (),
-                }
-            }
-            return ret;
-        }
-
-        // Otherwise, return the rest of the content as a single node.
-        return PathTreeNode{
-            content: input,
-            children: Vec::new(),
-        }
-    }
-}
-
-struct PathTreeNodeIterator<'a> {
-    stack: Vec<(&'a PathTreeNode<'a>, usize)>,
-}
-
-impl<'a> PathTreeNodeIterator<'a> {
-    fn new(root: &'a PathTreeNode) -> PathTreeNodeIterator<'a> {
-        let mut initial_stack: Vec<(&'a PathTreeNode, usize)> = Vec::new();
-        let mut node = root;
-        loop {
-            initial_stack.push((node, 0));
-            if node.children.is_empty() {
-                break;
-            }
-            node = &node.children[0];
-        }
-        PathTreeNodeIterator{
-            stack: initial_stack,
-        }
-    }
-}
-
-impl<'a> Iterator for PathTreeNodeIterator<'a> {
-    type Item = String;
-    
-    fn next(&mut self) -> Option<<Self as Iterator>::Item> {
-        while !self.stack.is_empty() {
-            // End of the stack is always a leaf node
-            let item = self.stack.pop().map(|item| item.0);
-            let mut ret = String::new();
-            if let Some(i) = item {
-                for &segment in &self.stack {
-                    ret.push_str(segment.0.content);
-                }
-                ret.push_str(i.content);
-            }
-            while !self.stack.is_empty() {
-                // Ensure we keep the top of the stack at a leaf node
-                let (node, child_idx) = self.stack.pop().unwrap();
-                if child_idx + 1 < node.children.len() {
-                    self.stack.push((node, child_idx + 1));
-                    let mut child_node = &node.children[0];
-                    loop {
-                        self.stack.push((child_node, 0));
-                        if child_node.children.is_empty() {
-                            break;
-                        }
-                        child_node = &child_node.children[0];
-                    }
-                    break;
-                }
-            }
-            return Some(ret);
-        }
-        None
-    }
-}
-
-
-fn parse_all_paths(input: &str) -> Vec<String> {
-    let mut to_expand: Vec<String> = vec![input.to_owned()];
-    let mut ret: Vec<String> = Vec::new();
-
-    while !to_expand.is_empty() {
-        let item = to_expand.pop().unwrap();
-        // Find an innermost set of parentheses and expand all variants within it.
-        if let Some(close_idx) = item.find(')') {
-            if let Some(open_idx) = item[0..close_idx].rfind('(') {
-                for segment in item[open_idx + 1..close_idx].split('|') {
-                    let mut path_repl = String::with_capacity(open_idx + segment.len() + item.len() - close_idx);
-                    path_repl.push_str(&item[0..open_idx]);
-                    path_repl.push_str(segment);
-                    path_repl.push_str(&item[close_idx + 1..]);
-                    to_expand.push(path_repl.to_owned());
-                }
-            } else {
-                panic!("Paren mismatch, no open found for idx {}: {}", close_idx, item);
+    fn reset(&mut self) {
+        if !self.pattern_alternatives.is_empty() {
+            self.pattern_alternatives_idx = 0;
+        } else if !self.sub_segments.is_empty() {
+            for s in &mut self.sub_segments {
+                s.reset();
             }
         } else {
-            ret.push(item);
+            self.current_pattern = Some(self.original_input[self.start..self.end].to_string());
         }
     }
-    ret.sort();
-    ret.dedup();
-    ret
+
+    fn compute_alternatives(&mut self) {
+        let input = &self.original_input.clone()[self.start..self.end];
+        let mut paren_level: usize = 0;
+        let mut segment_start: usize = 0;
+        let mut alternatives = input.chars().enumerate().filter_map(|(i, c)| match c {
+            '|' if paren_level == 0 => {
+                let ret = PathIterator::new(self.original_input.clone(), self.start + segment_start, self.start + i);
+                segment_start = i + 1;
+                Some(ret)
+            }
+            '(' => {
+                paren_level += 1;
+                None
+            }
+            ')' => {
+                paren_level -= 1;
+                None
+            }
+            _ => None,
+        }).collect::<Vec<PathIterator>>();
+        if !alternatives.is_empty()  {
+            // Make sure we include the last segment
+            alternatives.push(PathIterator::new(self.original_input.clone(), self.start + segment_start, self.start + input.len()));
+            self.pattern_alternatives = alternatives;
+        }
+    }
+
+    fn compute_sub_segments(&mut self) {
+        let input = &self.original_input[self.start..self.end];
+        let mut segment_start: usize = 0;
+        let mut paren_level: usize = 0;
+        let mut sub_segments= input.chars().enumerate().filter_map(|(i, c)| match c {
+            '(' if paren_level > 0 => {
+                paren_level += 1;
+                None
+            }
+            '(' => {
+                let ret = Some(PathIterator::new(self.original_input.clone(), self.start + segment_start, self.start + i));
+                paren_level += 1;
+                segment_start = i + 1;
+                ret
+            }
+            ')' => {
+                paren_level -= 1;
+                if paren_level == 0 {
+                    let ret = Some(PathIterator::new(self.original_input.clone(), self.start + segment_start, self.start + i));
+                    segment_start = i + 1;
+                    ret
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }).collect::<Vec<PathIterator>>();
+        // Make sure we include the last segment
+        if !sub_segments.is_empty() {
+            sub_segments.push(PathIterator::new(self.original_input.clone(), self.start + segment_start, self.start + input.len()));
+            self.sub_segments = sub_segments;
+        }
+    }
+}
+
+impl Iterator for PathIterator {
+    type Item = String;
+
+    fn next(&mut self) -> Option<<Self as Iterator>::Item> {
+        // If this segment is a set of alternatives, return the next pattern from the alternatives.
+        if !self.pattern_alternatives.is_empty() {
+            loop {
+                // When alternatives are exhausted, we return None and let
+                // the parent iterator recreate us
+                if self.pattern_alternatives_idx >= self.pattern_alternatives.len() {
+                    return None;
+                }
+
+                match self.pattern_alternatives[self.pattern_alternatives_idx].next() {
+                    Some(item) => {
+                        self.current_pattern = Some(item);
+                        break;
+                    }
+                    None => self.pattern_alternatives_idx += 1,
+                }
+            }
+            return (&self.current_pattern).clone();
+        } else if !self.sub_segments.is_empty() {
+            // Otherwise, construct the matching string from our sub-segments
+            let mut i: usize = self.sub_segments.len() - 1;
+            while self.sub_segments[i].next().is_none() {
+                if i == 0 {
+                    // Exhausted all options for all sub-segments
+                    return None;
+                }
+                i -= 1;
+            }
+            // Re-initialize the exhausted sub-segments.
+            // Iterate each once so we can peek at the first item.
+            for i in i + 1..self.sub_segments.len() {
+                self.sub_segments[i].reset();
+            }
+            let mut ret: String = String::new();
+            for s in self.sub_segments.iter() {
+                ret.push_str(s.current_pattern.as_ref().unwrap().as_str());
+            }
+            self.current_pattern = Some(ret);
+            return (&self.current_pattern).clone();
+        } else {
+            self.current_pattern = None;
+            return None;
+        }
+    }
 }
 
 // Given a path, return how far in each direction the path ends up traveling.
@@ -185,8 +198,9 @@ fn determine_map_size(path: &str) -> (i32, i32, i32, i32) {
     (xmin, ymin, xmax, ymax)
 }
 
-fn find_map_edges(paths: &PathTreeNode) -> (i32, i32, i32, i32) {
-    paths.iter().map(|p| determine_map_size(&p))
+fn find_map_edges(paths: PathIterator) -> (i32, i32, i32, i32) {
+
+    paths.map(|p| determine_map_size(&p))
             .fold((0, 0, 0, 0),
                   |a, r| (min(a.0, r.0), min(a.1, r.1), max(a.2, r.2), max(a.3, r.3)))
 }
@@ -225,10 +239,10 @@ struct Room {
 
 #[aoc(day20, part1)]
 fn solve_part1(input: &str) -> usize {
-    let root = PathTreeNode::parse_from(input);
+    let root = PathIterator::new(Rc::new(input.to_string()), 0, input.len());
     
     // First, determine how big our map should be.
-    let maprange = find_map_edges(&root);
+    let maprange = find_map_edges(root.clone());
 
     let mut map: Vec<Vec<Room>> = Vec::with_capacity((maprange.3 - maprange.1 + 3) as usize);
     for _ in 0..map.capacity() {
@@ -238,7 +252,7 @@ fn solve_part1(input: &str) -> usize {
     let xstart = -maprange.0 as usize;
     let ystart = -maprange.1 as usize;
     // Trace out each path to fill in the map.
-    for path in root.iter() {
+    for path in root {
         let mut x = xstart;
         let mut y = ystart;
         for &c in path.as_bytes().iter() {
@@ -314,7 +328,16 @@ mod tests {
             "NSNEW",
             "NSNSW"
         ];
-        let mut output = parse_all_paths(input);
+        let mut output: Vec<String> = Vec::new();
+        let mut root = PathIterator::new(Rc::new(input.to_string()), 0, input.len());
+        println!("{:#?}", root);
+        for i in 0..5 {
+            println!("--- {} ---", i);
+            println!("{:?}", root.next());
+            println!("{:#?}", root);
+        }
+        for i in root {
+        }
         output.sort();
         expected.sort();
         assert_eq!(expected, output);

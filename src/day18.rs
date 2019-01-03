@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_parse_input() {
-        let m = get_test_input();
+        let _m = get_test_input();
     }
 
     #[test]
