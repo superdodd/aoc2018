@@ -3,7 +3,6 @@ use std::cmp::min;
 use std::mem;
 use std::cmp::max;
 use std::collections::HashMap;
-use std::collections::hash_map::Entry;
 use std::collections::HashSet;
 
 #[derive(Debug, PartialEq)]
@@ -291,8 +290,7 @@ fn solve_part1(input: &str) -> usize {
     root.count()
 }
 
-#[aoc(day20, part1, walk)]
-fn walk_part1(input: &str) -> usize {
+fn walk_rooms(input: &str) -> (usize, HashMap<(i32, i32), usize>) {
     // This is a stack of where we should go back to when we start an alternate branch.
     let mut backtrack_stack: Vec<(i32, i32)> = Vec::new();
     let mut rooms: HashMap<(i32, i32), Room> = HashMap::new();
@@ -337,19 +335,19 @@ fn walk_part1(input: &str) -> usize {
         }
     }
 
-/*
-    let mut map: Vec<Vec<Room>> = vec![vec![Room::default(); (max_x - min_x + 1) as usize]; (max_y - min_y + 1) as usize];
-    for (loc, room) in rooms.iter_mut() {
-        map[(loc.1 - min_y) as usize][(loc.0 - min_x) as usize] = room.clone();
-    }
-    print_map(&map);
-*/
+    /*
+        let mut map: Vec<Vec<Room>> = vec![vec![Room::default(); (max_x - min_x + 1) as usize]; (max_y - min_y + 1) as usize];
+        for (loc, room) in rooms.iter_mut() {
+            map[(loc.1 - min_y) as usize][(loc.0 - min_x) as usize] = room.clone();
+        }
+        print_map(&map);
+    */
 
     let mut max_distance: usize = 0;
     let mut to_check: Vec<(i32, i32, usize)> = vec![(0, 0, 0)];
-    let mut checked: HashSet<(i32, i32)> = HashSet::new();
+    let mut checked: HashMap<(i32, i32), usize> = HashMap::new();
     while !to_check.is_empty() {
-        let mut start = to_check.pop().unwrap();
+        let mut start = to_check.remove(0);
         max_distance = max(max_distance, start.2);
         let room = rooms.entry((start.0, start.1)).or_insert(Room::default());
         check_room(&room.n, &mut checked, &mut to_check, (start.0, start.1 - 1, start.2 + 1));
@@ -357,14 +355,25 @@ fn walk_part1(input: &str) -> usize {
         check_room(&room.s, &mut checked, &mut to_check, (start.0, start.1 + 1, start.2 + 1));
         check_room(&room.w, &mut checked, &mut to_check, (start.0 - 1, start.1, start.2 + 1));
     }
-    max_distance
+    (max_distance, checked)
 }
 
-fn check_room(door: &Option<bool>, checked: &mut HashSet<(i32, i32)>, to_check: &mut Vec<(i32, i32, usize)>, chk: (i32, i32, usize)) {
+#[aoc(day20, part1, walk)]
+fn walk_part1(input: &str) -> usize {
+    walk_rooms(input).0
+}
+
+#[aoc(day20, part2)]
+fn walk_part2(input: &str) -> usize {
+    let distances = walk_rooms(input).1;
+    distances.iter().filter(|(_, &d)| d >= 1000).count()
+}
+
+fn check_room(door: &Option<bool>, checked: &mut HashMap<(i32, i32), usize>, to_check: &mut Vec<(i32, i32, usize)>, chk: (i32, i32, usize)) {
     match door {
         Some(true) => {
-            if !checked.contains(&(chk.0, chk.1)) {
-                checked.insert((chk.0, chk.1));
+            if !checked.contains_key(&(chk.0, chk.1)) {
+                checked.insert((chk.0, chk.1), chk.2);
                 to_check.push((chk.0, chk.1, chk.2));
             }
         },
