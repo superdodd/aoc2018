@@ -35,3 +35,10 @@ fn solve_part1(_input: &str) -> usize {
     }
     risk_level
 }
+
+#[aoc(day22, part2)]
+fn solve_part2(_input: &str) -> usize {
+    let map = get_map(DEPTH, TARGET, TARGET);
+
+
+}
