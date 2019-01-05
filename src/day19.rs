@@ -130,6 +130,6 @@ mod tests {
     fn test_execute() {
         let mut cpu = get_test_input();
         while cpu.tick() { /* Nothing */ }
-        assert_eq!([6, 5, 6, 0, 0, 9], cpu.reg);
+        assert_eq!([0, 5, 0, 0, 0, 0], cpu.reg);
     }
 }

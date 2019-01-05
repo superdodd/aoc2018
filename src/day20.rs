@@ -1,9 +1,10 @@
+#![allow(dead_code)]
+
 use aoc_runner_derive::aoc;
 use std::cmp::min;
 use std::mem;
 use std::cmp::max;
 use std::collections::HashMap;
-use std::collections::HashSet;
 
 #[derive(Debug, PartialEq)]
 enum PathNodeType {
@@ -111,7 +112,7 @@ impl PathNodeType {
             }
             PathNodeType::Alternatives { alternatives_idx, alternatives, .. } => {
                 *alternatives_idx = None;
-                for mut a in alternatives {
+                for a in alternatives {
                     a.reset();
                 }
             }
@@ -347,7 +348,7 @@ fn walk_rooms(input: &str) -> (usize, HashMap<(i32, i32), usize>) {
     let mut to_check: Vec<(i32, i32, usize)> = vec![(0, 0, 0)];
     let mut checked: HashMap<(i32, i32), usize> = HashMap::new();
     while !to_check.is_empty() {
-        let mut start = to_check.remove(0);
+        let start = to_check.remove(0);
         max_distance = max(max_distance, start.2);
         let room = rooms.entry((start.0, start.1)).or_insert(Room::default());
         check_room(&room.n, &mut checked, &mut to_check, (start.0, start.1 - 1, start.2 + 1));
