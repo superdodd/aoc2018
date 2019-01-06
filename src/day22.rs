@@ -1,12 +1,13 @@
 use aoc_runner_derive::aoc;
-use std::cmp::min;
+//use std::cmp::min;
 use std::fmt;
 use std::fmt::Formatter;
 use std::fmt::Error;
 use std::fmt::Write;
 use std::cmp::max;
 use std::collections::VecDeque;
-use std::collections::HashSet;
+//use fnv::FnvHashSet;
+//use std::collections::HashSet;
 
 const DEPTH: usize = 11820;
 const TARGET: (usize, usize) = (7, 782);
@@ -62,6 +63,8 @@ impl fmt::Debug for Eqp {
 struct Loc {
     cell: MapCell,
     erosion_level: usize,
+    // For each equipment type, see if we need to try to extend a new path from here.
+    needs_check: [bool; 3],
     // For each equipment type, store a pointer back
     // to the next step of the traceback to the origin
     // along the shortest (currently known) path.
@@ -73,7 +76,8 @@ struct Map {
     depth: usize,
     target: (usize, usize),
     to_check: VecDeque<(usize, usize, Eqp)>,
-    to_check_hash: HashSet<(usize, usize, Eqp)>,
+    //to_check_hash: FnvHashSet<(usize, usize, Eqp)>,
+    //to_check_hash: HashSet<(usize, usize, Eqp)>,
     shortest_time: Option<usize>,
     destination: (usize, usize, Eqp),
 }
@@ -86,14 +90,16 @@ impl Map {
             map: Vec::new(),
             depth,
             target,
-            to_check: VecDeque::new(),
-            to_check_hash: HashSet::new(),
+            to_check: VecDeque::with_capacity(limit.0 * limit.1 * 3),
+            //to_check_hash: FnvHashSet::default(),
+            //to_check_hash: HashSet::default(),
             shortest_time: None,
             destination: (target.0, target.1, EQP_T),
         };
+        //ret.to_check_hash.insert((0, 0, EQP_T));
+        ret.ensure_size(max(limit.0, limit.1) + 10, max(limit.0, limit.1) + 10);
         ret.to_check.push_front((0, 0, EQP_T));
-        ret.to_check_hash.insert((0, 0, EQP_T));
-        ret.ensure_size(limit.0, limit.1);
+        ret.map[0][0].needs_check[EQP_T.0] = true;
         ret.map[0][0].paths[EQP_T.0] = Some((0, (0, 0, EQP_T)));
         ret
     }
@@ -148,6 +154,7 @@ impl Map {
                 };
                 let erosion_level = (idx + self.depth) % 20183;
                 self.map[y].push(Loc {
+                    needs_check: [false; 3],
                     cell: MapCell(erosion_level % 3),
                     erosion_level,
                     paths: [None; 3],
@@ -156,6 +163,7 @@ impl Map {
         }
     }
 
+    #[allow(dead_code)]
     fn get_map_str(&self) -> String {
         let mut map_str = String::new();
         for y in 0..self.map.len() {
@@ -196,15 +204,13 @@ impl Map {
             _ => true,
         }
     }
-
+    
     fn check_next(&mut self, start: &(usize, usize, Eqp), start_cost: usize, step: &(usize, usize, Eqp)) {
         if step == start {
             return;
         }
-        if !self.valid_state(step.0, step.1, step.2) {
-            return;
-        }
-        let step_cost = if start.2 == step.2 {
+        let (x, y, e) = *step;
+        let step_cost = if start.2 == e {
             1usize
         } else {
             7
@@ -218,12 +224,19 @@ impl Map {
             }
         }
 
-        let existing_path = &self.map[step.1][step.0].paths[(step.2).0];
-        if existing_path.is_none() || existing_path.unwrap().0 > new_path_cost {
-            self.map[step.1][step.0].paths[(step.2).0] = Some((new_path_cost, *start));
-            if !self.to_check_hash.contains(step) {
-                self.to_check_hash.insert(*step);
-                self.to_check.push_back(*step);
+        if !self.valid_state(x, y, e) {
+            return;
+        }
+        
+        let mut loc = &mut self.map[y][x];
+        match loc.paths[e.0] {
+            Some(existing_path) if existing_path.0 <= new_path_cost => (),
+            _ => {
+                loc.paths[e.0] = Some((new_path_cost, *start));
+                if !loc.needs_check[e.0] {
+                    loc.needs_check[e.0] = true;
+                    self.to_check.push_back(*step);
+                }
             }
         }
     }
@@ -231,14 +244,15 @@ impl Map {
     fn find_shortest_time(&mut self) -> usize {
         // Do a breadth-first search to find the shortest-time path from the origin to the target.
         // Note that the solution space incorporates both the x, y location as well as the equipped item.
-
-        while !self.to_check.is_empty() {
-            let start = self.to_check.pop_front().unwrap();
-            self.to_check_hash.remove(&start);
+        while let Some(start) = self.to_check.pop_front() {
+            self.map[start.1][start.0].needs_check[(start.2).0] = false;
             let trace_back = &self.map[start.1][start.0].paths[(start.2).0].unwrap();
 
             if start == self.destination {
-                self.shortest_time.replace(min(self.shortest_time.unwrap_or(trace_back.0), trace_back.0));
+                self.shortest_time = match self.shortest_time {
+                    Some(t) if t < trace_back.0 => Some(t),
+                    _ => Some(trace_back.0),
+                };
                 continue;
             }
 
@@ -255,9 +269,9 @@ impl Map {
             // Each check_next call potentially adds a new item to the to_check list, updates the entry
             // in paths, and expands the map if required.
             self.ensure_size(start.0 + 1, start.1 + 1);
-            for e in (0..=2).map(|i| Eqp(i)) {
-                self.check_next(&start, trace_back.0, &(start.0, start.1, e));
-            }
+            self.check_next(&start, trace_back.0, &(start.0, start.1, EQP_T));
+            self.check_next(&start, trace_back.0, &(start.0, start.1, EQP_C));
+            self.check_next(&start, trace_back.0, &(start.0, start.1, EQP_E));
             if start.1 > 0 {
                 self.check_next(&start, trace_back.0, &(start.0, start.1 - 1, start.2));
             }
@@ -269,26 +283,29 @@ impl Map {
         }
 
         //println!("{}", self.get_map_str());
-        let best_path = &self.map[self.destination.1][self.destination.0].paths[(self.destination.2).0].unwrap();
-        let mut cost = 0;
-        let mut prev = self.destination;
-        let mut curr = best_path.1;
-        while prev != (0, 0, EQP_T) {
-            let (x, y, e) = curr;
-            if prev.2 != e {
-                assert_eq!((x, y), (prev.0, prev.1));
-                cost += 7;
-            } else if prev.0 != x {
-                assert_eq!((y, e), (prev.1, prev.2));
-                cost += 1;
-            } else if prev.1 != y {
-                assert_eq!((x, e), (prev.0, prev.2));
-                cost += 1;
+        if let Some(best_path) = &self.map[self.destination.1][self.destination.0].paths[(self.destination.2).0] {
+            let mut cost = 0;
+            let mut prev = self.destination;
+            let mut curr = best_path.1;
+            while prev != (0, 0, EQP_T) {
+                let (x, y, e) = curr;
+                if prev.2 != e {
+                    assert_eq!((x, y), (prev.0, prev.1));
+                    cost += 7;
+                } else if prev.0 != x {
+                    assert_eq!((y, e), (prev.1, prev.2));
+                    cost += 1;
+                } else if prev.1 != y {
+                    assert_eq!((x, e), (prev.0, prev.2));
+                    cost += 1;
+                }
+                prev = curr;
+                curr = self.map[curr.1][curr.0].paths[(curr.2).0].unwrap().1;
             }
-            prev = curr;
-            curr = self.map[curr.1][curr.0].paths[(curr.2).0].unwrap().1;
+            assert_eq!(cost, best_path.0);
+        } else {
+            panic!("No best path found");
         }
-        assert_eq!(cost, best_path.0);
         self.shortest_time.unwrap()
     }
 }
