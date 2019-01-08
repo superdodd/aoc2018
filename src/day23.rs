@@ -54,7 +54,7 @@ fn upper_bound_for_region(bots: &Vec<Nanobot>, x: (usize, usize), y: (usize, usi
 /// This is the number of bots for which *all* points in the region are in range.
 fn lower_bound_for_region(bots: &Vec<Nanobot>, x: (usize, usize), y: (usize, usize), z: (usize, usize)) -> usize {
     // Note that a bot overlaps a region entirely iff the corners of the region are all in range.
-    
+
 }
 
 /// Splits a region into eight sub-regions, subdividing each axis range in half.
@@ -87,7 +87,7 @@ fn solve_part2(bots: &Vec<Nanobot>) -> usize {
     // Recursively split the total search space, determining the upper and lower bounds for each
     // subdivision.  We can discard subdivisions whose upper bound is smaller than the largest
     // lower bound we've found for any other region.
-    // Order our search by lower bound (always further subdivide regions with higher lower bounds first).
+    // Order our search by upper bound (always further subdivide regions with higher upper bounds first).
     unimplemented!()
 }
 
