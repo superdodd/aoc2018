@@ -38,12 +38,57 @@ fn parse_input(input: &str) -> Vec<Nanobot> {
     ret
 }
 
+/// Returns an upper bound on the largest number of bots reachable by any point within the described
+/// cubic region.  Axis ranges are lower-bound inclusive, upper-bound exclusive.
+/// This is the number of bots that are in range of any point within the region.
+fn upper_bound_for_region(bots: &Vec<Nanobot>, x: (usize, usize), y: (usize, usize), z: (usize, usize)) -> usize {
+    // A bot has points in range if:
+    // - The bot's location is contained within the region, or
+    // - The bot is within range of any corner of the region, or
+    // - The bot is in between two planes created by the region along any pair of axes,
+    //     and is within the bot's range of the endpoints of the region along the third axis.
+}
+
+/// Returns a lower bound on the largest number of bots reachable by any point within the described
+/// cubic region.  Axis ranges are lower-bound inclusive, upper-bound exclusive.
+/// This is the number of bots for which *all* points in the region are in range.
+fn lower_bound_for_region(bots: &Vec<Nanobot>, x: (usize, usize), y: (usize, usize), z: (usize, usize)) -> usize {
+    // Note that a bot overlaps a region entirely iff the corners of the region are all in range.
+    
+}
+
+/// Splits a region into eight sub-regions, subdividing each axis range in half.
+fn split_region(x: (usize, usize), y: (usize, usize), z: (usize, usize)) -> [((usize, usize), (usize, usize), (usize, usize)); 8] {
+    let xmid = (x.0 + x.1) / 2;
+    let ymid = (y.0 + y.1) / 2;
+    let zmid = (z.0 + z.1) / 2;
+    let xa = (x.0, xmid);
+    let xb = (xmid, x.1);
+    let ya = (y.0, ymid);
+    let yb = (ymid, y.1);
+    let za = (z.0, zmid);
+    let zb = (zmid, z.0);
+    [
+        (xa, ya, za), (xa, ya, zb), (xa, yb, za), (xa, yb, zb),
+        (xb, ya, za), (xb, ya, zb), (xb, yb, za), (xb, yb, zb),
+    ]
+}
+
 #[aoc(day23, part1)]
 fn solve_part1(bots: &Vec<Nanobot>) -> usize {
     let ref_bot = bots.iter().max_by(|&a, &b| a.range.cmp(&b.range)).unwrap();
     println!("Max range bot: {:?}", ref_bot);
 
     bots.iter().filter(|&b| ref_bot.is_in_range(b)).count()
+}
+
+#[aoc(day23, part2)]
+fn solve_part2(bots: &Vec<Nanobot>) -> usize {
+    // Recursively split the total search space, determining the upper and lower bounds for each
+    // subdivision.  We can discard subdivisions whose upper bound is smaller than the largest
+    // lower bound we've found for any other region.
+    // Order our search by lower bound (always further subdivide regions with higher lower bounds first).
+    unimplemented!()
 }
 
 #[cfg(test)]
@@ -79,5 +124,10 @@ mod tests {
                             pos=<1,3,1>, r=1";
         let bots = parse_input(input);
         assert_eq!(8, solve_part1(&bots));
+    }
+
+    #[test]
+    fn test_upper_bound_for_region() {
+        unimplemented!()
     }
 }
