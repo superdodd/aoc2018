@@ -236,17 +236,16 @@ impl Region {
 impl Ord for Region {
     fn cmp(&self, other: &Self) -> Ordering {
         // Prefer these attributes, in decreasing order of preference:
+        // - Lower bound + upper bound lengths (greater preferred)
         // - Lower bound length (greater preferred)
         // - smallest distance to origin for any point in region (smaller preferred)
         // - Size (smaller volume preferred)
-        // - Upper bound length (greater preferred)
         // - min corner (smaller preferred)
         // - max corner (smaller preferred)
-        self.lower_bound_bots.len().cmp(&other.lower_bound_bots.len())
+        (self.lower_bound_bots.len() + self.upper_bound_bots.len()).cmp(&(other.lower_bound_bots.len() + other.upper_bound_bots.len()))
+            .then(self.lower_bound_bots.len().cmp(&other.lower_bound_bots.len()))
             .then(other.min_dist_to_origin.cmp(&self.min_dist_to_origin))
             .then(other.volume.cmp(&self.volume))
-            .then(self.upper_bound_bots.len().cmp(&other.upper_bound_bots.len()))
-            .then(other.min_dist_to_origin.cmp(&self.min_dist_to_origin))
             .then(other.x_min.cmp(&self.x_min))
             .then(other.y_min.cmp(&self.y_min))
             .then(other.z_min.cmp(&self.z_min))
@@ -284,17 +283,15 @@ fn solve_part2(bots: &Vec<Nanobot>) -> usize {
     let mut loop_count = 0usize;
     while let Some(region) = region_heap.pop() {
         loop_count += 1;
-        if loop_count % 1000000 == 0 {
-            match best_region.as_ref() {
-                Some(b) => println!("Loop={} heap={} best: d={} vol={} count={} curr: vol={} min={} max={}", loop_count, region_heap.len(), b.min_dist_to_origin, b.volume, b.lower_bound_bots.len(), region.volume, region.lower_bound_bots.len(), region.upper_bound_bots.len()),
-                None => println!("Loop={} heap={} curr: vol={} min={} max={}", loop_count, region_heap.len(), region.volume, region.lower_bound_bots.len(), region.upper_bound_bots.len()),
-            }
-        }
         if region.upper_bound_bots.is_empty() {
             // No need to further split this region; see if it's better than the
             // previous best we've found so far.
             best_region = match best_region.as_ref().map(|b| b.cmp(&region)) {
-                None | Some(Ordering::Less) => Some(region),
+                None | Some(Ordering::Less) => {
+                    println!("Loop {}: Found better region: count={}, dist={}",
+                        loop_count, region.lower_bound_bots.len(), region.min_dist_to_origin);
+                    Some(region)
+                }
                 _ => best_region,
             };
             continue;
@@ -312,6 +309,8 @@ fn solve_part2(bots: &Vec<Nanobot>) -> usize {
     }
 
     if let Some(r) = best_region {
+        println!("Loop {}: Best region found. count={}, dist={}, vol={}",
+            loop_count, r.lower_bound_bots.len(), r.min_dist_to_origin, r.volume);
         return r.min_dist_to_origin;
     }
     unreachable!()
