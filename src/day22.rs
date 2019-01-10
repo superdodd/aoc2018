@@ -97,7 +97,7 @@ impl Map {
             destination: (target.0, target.1, EQP_T),
         };
         //ret.to_check_hash.insert((0, 0, EQP_T));
-        ret.ensure_size(max(limit.0, limit.1) + 10, max(limit.0, limit.1) + 10);
+        ret.ensure_size(max(limit.0, limit.1), max(limit.0, limit.1));
         ret.to_check.push_front((0, 0, EQP_T));
         ret.map[0][0].needs_check[EQP_T.0] = true;
         ret.map[0][0].paths[EQP_T.0] = Some((0, (0, 0, EQP_T)));
@@ -316,7 +316,7 @@ fn solve_part1(_input: &str) -> usize {
     map.get_risk_level()
 }
 
-#[aoc(day22, part2)]
+#[aoc(day22, part2, orig)]
 fn solve_part2(_input: &str) -> usize {
     let mut map = Map::new(DEPTH, TARGET, TARGET);
     map.find_shortest_time()
