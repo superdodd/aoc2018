@@ -2,6 +2,9 @@
 extern crate num_derive;
 extern crate regex;
 
+#[macro_use]
+extern crate nom;
+
 use aoc_runner_derive::aoc_lib;
 
 mod day13;
@@ -16,5 +19,6 @@ mod day21;
 mod day22;
 mod day22b;
 mod day23;
+mod day24;
 
 aoc_lib! { year = 2018 }

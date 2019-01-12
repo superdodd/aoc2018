@@ -9,14 +9,11 @@ const TARGET: (usize, usize) = (7, 782);
 
 type Equipment = usize;
 
-const EQP_E: Equipment = 0;
-const EQP_T: Equipment = 1;
-const EQP_C: Equipment = 2;
+// This needs to be 1 because we want equipment type to be incompatible only
+// with the terrain type of the matching index (since wet=1, torch must be 1)
+const EQP_TORCH: Equipment = 1;
 
 type Terrain = usize;
-const TER_R: Terrain = 0;
-const TER_W: Terrain = 1;
-const TER_N: Terrain = 2;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 struct Loc {
@@ -144,15 +141,15 @@ impl Map {
                     (x, y) if (x, y) == self.target => 0,
                     (0, y) => y * 48271,
                     (x, 0) => x * 16807,
-                    (x, y) => &self.map[y-1][x][EQP_T as usize].erosion_level * &self.map[y][x-1][EQP_T as usize].erosion_level,
+                    (x, y) => &self.map[y-1][x][EQP_TORCH as usize].erosion_level * &self.map[y][x-1][EQP_TORCH as usize].erosion_level,
                 };
                 let erosion_level = (geo_idx + self.depth) % 20183;
                 let target_distance = (abs(self.target.0 as i32 - x as i32) + abs(self.target.1 as i32 - y as i32)) as usize;
                 let target = self.target;
                 self.map[y].push(vec![
-                    Loc{ x, y, e: 0, erosion_level, terrain_type: erosion_level % 3, cost: std::usize::MAX, step_back: (0, 0, EQP_T), target_distance, target },
-                    Loc{ x, y, e: 1, erosion_level, terrain_type: erosion_level % 3, cost: std::usize::MAX, step_back: (0, 0, EQP_T), target_distance, target },
-                    Loc{ x, y, e: 2, erosion_level, terrain_type: erosion_level % 3, cost: std::usize::MAX, step_back: (0, 0, EQP_T), target_distance, target },
+                    Loc{ x, y, e: 0, erosion_level, terrain_type: erosion_level % 3, cost: std::usize::MAX, step_back: (0, 0, EQP_TORCH), target_distance, target },
+                    Loc{ x, y, e: 1, erosion_level, terrain_type: erosion_level % 3, cost: std::usize::MAX, step_back: (0, 0, EQP_TORCH), target_distance, target },
+                    Loc{ x, y, e: 2, erosion_level, terrain_type: erosion_level % 3, cost: std::usize::MAX, step_back: (0, 0, EQP_TORCH), target_distance, target },
                 ]);
             }
         }
@@ -168,21 +165,16 @@ impl Map {
             shortest_time: None,
         };
 
-        ret.ensure_size(target.0 * 2, target.1 * 2);
-        ret.map[0][0][EQP_T].cost = 0;
-        ret.to_check.push(ret.map[0][0][EQP_T]);
+        ret.ensure_size(limit.0, limit.1);
+        ret.map[0][0][EQP_TORCH].cost = 0;
+        ret.to_check.push(ret.map[0][0][EQP_TORCH]);
         ret
-    }
-
-    fn valid_state(&self, x: usize, y: usize, e: Equipment) -> bool {
-        self.map[y][x][EQP_E].terrain_type as usize != e as usize
     }
 
     fn find_shortest_time(&mut self) -> usize {
         let mut check_count: usize = 0;
         while let Some(loc) = self.to_check.pop() {
             check_count += 1;
-            let curr_loc = &self.map[loc.y][loc.x][loc.e as usize];
             // If this path is not better than the current-best path through the same location,
             // discard it.
             if loc.cost > 0 && self.map[loc.y][loc.x][loc.e as usize].cost <= loc.cost {
@@ -201,7 +193,7 @@ impl Map {
 
             // If this is the destination, record the best total path time we've seen
             // so far.
-            if (loc.x, loc.y, loc.e) == (self.target.0, self.target.1, EQP_T) {
+            if (loc.x, loc.y, loc.e) == (self.target.0, self.target.1, EQP_TORCH) {
                 //println!("Destination, cost: {}, shortest: {:?}", loc.cost, self.shortest_time);
                 self.shortest_time = match self.shortest_time {
                     Some(t) if loc.cost >= t => Some(t),
@@ -216,12 +208,13 @@ impl Map {
             self.to_check.extend(self.next_steps(&loc).into_iter());
         }
 
-        let mut curr = self.map[self.target.1][self.target.0][EQP_T as usize];
+        let mut curr = self.map[self.target.1][self.target.0][EQP_TORCH as usize];
         let mut path = Vec::new();
         while curr.step_back != (curr.x, curr.y, curr.e) {
             path.push(curr);
             curr = self.map[curr.step_back.1][curr.step_back.0][curr.step_back.2 as usize];
         }
+        /*
         for loc in path.iter().rev() {
             let eq_char = match loc.e {
                 EQP_T => 'T',
@@ -229,12 +222,13 @@ impl Map {
                 EQP_E => 'E',
                 _ => '?',
             };
-            //println!("({}, {}) {}", loc.x, loc.y, eq_char);
+            println!("({}, {}) {}", loc.x, loc.y, eq_char);
         }
+*/
 
         println!("Complete. Loops={}", check_count);
         if let Some(ref t) = self.shortest_time {
-            assert_eq!(self.map[self.target.1][self.target.0][EQP_T as usize].cost, *t);
+            assert_eq!(self.map[self.target.1][self.target.0][EQP_TORCH as usize].cost, *t);
             return *t;
         } else {
             unreachable!()
