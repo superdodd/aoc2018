@@ -2,9 +2,6 @@
 extern crate num_derive;
 extern crate regex;
 
-#[macro_use]
-extern crate nom;
-
 use aoc_runner_derive::aoc_lib;
 
 mod day13;

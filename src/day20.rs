@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
 use aoc_runner_derive::aoc;
-use std::cmp::min;
-use std::mem;
 use std::cmp::max;
+use std::cmp::min;
 use std::collections::HashMap;
+use std::mem;
 
 #[derive(Debug, PartialEq)]
 enum PathNodeType {
@@ -21,7 +21,7 @@ enum PathNodeType {
     Subsegments {
         input: String,
         sub_segments: Vec<PathNodeType>,
-    }
+    },
 }
 
 impl PathNodeType {
@@ -54,8 +54,8 @@ impl PathNodeType {
             };
         } else if top_level_alternatives {
             let mut paren_level: usize = 0;
-            let children = input.split(|c: char| {
-                match c {
+            let children = input
+                .split(|c: char| match c {
                     '|' if paren_level == 0 => true,
                     '(' => {
                         paren_level += 1;
@@ -65,9 +65,10 @@ impl PathNodeType {
                         paren_level -= 1;
                         false
                     }
-                    _ => false
-                }
-            }).map(|s: &str| PathNodeType::parse(s)).collect::<Vec<PathNodeType>>();
+                    _ => false,
+                })
+                .map(|s: &str| PathNodeType::parse(s))
+                .collect::<Vec<PathNodeType>>();
 
             PathNodeType::Alternatives {
                 input: input.to_string(),
@@ -76,8 +77,8 @@ impl PathNodeType {
             }
         } else {
             let mut paren_level: usize = 0;
-            let mut children = input.split(|c: char| {
-                match c {
+            let mut children = input
+                .split(|c: char| match c {
                     '(' => {
                         paren_level += 1;
                         paren_level == 1
@@ -86,9 +87,10 @@ impl PathNodeType {
                         paren_level -= 1;
                         paren_level == 0
                     }
-                    _ => false
-                }
-            }).map(|s: &str| PathNodeType::parse(s)).collect::<Vec<PathNodeType>>();
+                    _ => false,
+                })
+                .map(|s: &str| PathNodeType::parse(s))
+                .collect::<Vec<PathNodeType>>();
             // In order to get the correct behavior, we need to "prime" the iterator for all
             // but the last sub-segments
             if children.len() > 1 {
@@ -106,11 +108,19 @@ impl PathNodeType {
     /// Resets the state of the iterator to begin iteration again.
     fn reset(&mut self) {
         match self {
-            PathNodeType::Static { input, current, next } => {
+            PathNodeType::Static {
+                input,
+                current,
+                next,
+            } => {
                 *current = None;
                 *next = Some(input.to_string());
             }
-            PathNodeType::Alternatives { alternatives_idx, alternatives, .. } => {
+            PathNodeType::Alternatives {
+                alternatives_idx,
+                alternatives,
+                ..
+            } => {
                 *alternatives_idx = None;
                 for a in alternatives {
                     a.reset();
@@ -132,7 +142,11 @@ impl PathNodeType {
     fn current(&self) -> Option<String> {
         match self {
             PathNodeType::Static { current, .. } => current.clone(),
-            PathNodeType::Alternatives { alternatives, alternatives_idx, .. } => {
+            PathNodeType::Alternatives {
+                alternatives,
+                alternatives_idx,
+                ..
+            } => {
                 if let Some(idx) = *alternatives_idx {
                     if idx >= alternatives.len() {
                         None
@@ -142,7 +156,7 @@ impl PathNodeType {
                 } else {
                     None
                 }
-            },
+            }
             PathNodeType::Subsegments { sub_segments, .. } => {
                 let mut ret = String::new();
                 for s in sub_segments {
@@ -153,16 +167,18 @@ impl PathNodeType {
                     }
                 }
                 Some(ret)
-            },
+            }
         }
     }
 
     /// Iterate through all paths, determining the farthest bounds in each direction required.
     /// Reset the iterator afterward.
     fn determine_map_edges(&mut self) -> (i32, i32, i32, i32) {
-        let ret = self.map(|p| determine_map_size(&p))
-                    .fold((0, 0, 0, 0),
-                          |a, r| (min(a.0, r.0), min(a.1, r.1), max(a.2, r.2), max(a.3, r.3)));
+        let ret = self
+            .map(|p| determine_map_size(&p))
+            .fold((0, 0, 0, 0), |a, r| {
+                (min(a.0, r.0), min(a.1, r.1), max(a.2, r.2), max(a.3, r.3))
+            });
         self.reset();
         ret
     }
@@ -176,24 +192,26 @@ impl Iterator for PathNodeType {
             PathNodeType::Static { current, next, .. } => {
                 *current = mem::replace(next, None);
             }
-            PathNodeType::Alternatives { alternatives, alternatives_idx, .. } => {
-                match *alternatives_idx {
-                    None => {
-                        *alternatives_idx = Some(0);
-                        alternatives[0].next();
-                    }
-                    Some(i) => {
-                        let mut j = i;
-                        while j < alternatives.len() {
-                            match alternatives[j].next() {
-                                None => j += 1,
-                                Some(_) => break,
-                            }
-                        }
-                        *alternatives_idx = Some(j);
-                    }
+            PathNodeType::Alternatives {
+                alternatives,
+                alternatives_idx,
+                ..
+            } => match *alternatives_idx {
+                None => {
+                    *alternatives_idx = Some(0);
+                    alternatives[0].next();
                 }
-            }
+                Some(i) => {
+                    let mut j = i;
+                    while j < alternatives.len() {
+                        match alternatives[j].next() {
+                            None => j += 1,
+                            Some(_) => break,
+                        }
+                    }
+                    *alternatives_idx = Some(j);
+                }
+            },
             PathNodeType::Subsegments { sub_segments, .. } => {
                 assert!(sub_segments.len() > 0);
                 let mut i: i32 = sub_segments.len() as i32 - 1;
@@ -244,34 +262,40 @@ fn determine_map_size(path: &str) -> (i32, i32, i32, i32) {
 }
 
 fn find_map_edges(paths: &mut PathNodeType) -> (i32, i32, i32, i32) {
-
-    paths.map(|p| determine_map_size(&p))
-            .fold((0, 0, 0, 0),
-                  |a, r| (min(a.0, r.0), min(a.1, r.1), max(a.2, r.2), max(a.3, r.3)))
+    paths
+        .map(|p| determine_map_size(&p))
+        .fold((0, 0, 0, 0), |a, r| {
+            (min(a.0, r.0), min(a.1, r.1), max(a.2, r.2), max(a.3, r.3))
+        })
 }
 
 fn print_map(map: &Vec<Vec<Room>>) {
     for row in map.iter() {
-        println!("{}", row.iter().map(|room| match (room.n, room.e, room.s, room.w) {
-            (Some(true), Some(true), Some(true), Some(true)) => '┼',
-            (Some(true), Some(true), Some(true), _) => '├',
-            (_, Some(true), Some(true), Some(true)) => '┬',
-            (Some(true), _, Some(true), Some(true)) => '┤',
-            (Some(true), Some(true), _, Some(true)) => '┴',
+        println!(
+            "{}",
+            row.iter()
+                .map(|room| match (room.n, room.e, room.s, room.w) {
+                    (Some(true), Some(true), Some(true), Some(true)) => '┼',
+                    (Some(true), Some(true), Some(true), _) => '├',
+                    (_, Some(true), Some(true), Some(true)) => '┬',
+                    (Some(true), _, Some(true), Some(true)) => '┤',
+                    (Some(true), Some(true), _, Some(true)) => '┴',
 
-            (Some(true), Some(true), _, _) => '└',
-            (Some(true), _, _, Some(true)) => '┘',
-            (_, Some(true), Some(true), _) => '┌',
-            (_, _, Some(true), Some(true)) => '┐',
-            (Some(true), _, Some(true), _) => '│',
-            (_, Some(true), _, Some(true)) => '─',
+                    (Some(true), Some(true), _, _) => '└',
+                    (Some(true), _, _, Some(true)) => '┘',
+                    (_, Some(true), Some(true), _) => '┌',
+                    (_, _, Some(true), Some(true)) => '┐',
+                    (Some(true), _, Some(true), _) => '│',
+                    (_, Some(true), _, Some(true)) => '─',
 
-            (Some(true), _, _, _) => '╵',
-            (_, Some(true), _, _) => '╶',
-            (_, _, Some(true), _) => '╷',
-            (_, _, _, Some(true)) => '╴',
-            (_, _, _, _) => ' ',
-            }).collect::<String>());
+                    (Some(true), _, _, _) => '╵',
+                    (_, Some(true), _, _) => '╶',
+                    (_, _, Some(true), _) => '╷',
+                    (_, _, _, Some(true)) => '╴',
+                    (_, _, _, _) => ' ',
+                })
+                .collect::<String>()
+        );
     }
 }
 
@@ -283,7 +307,6 @@ struct Room {
     w: Option<bool>,
     distance: usize,
 }
-
 
 //#[aoc(day20, part1, full_parse)]
 fn solve_part1(input: &str) -> usize {
@@ -300,7 +323,7 @@ fn walk_rooms(input: &str) -> (usize, HashMap<(i32, i32), usize>) {
     let mut min_y: i32 = 0;
     let mut max_x: i32 = 0;
     let mut max_y: i32 = 0;
-    let mut loc= (0, 0);
+    let mut loc = (0, 0);
     for c in input.chars() {
         match c {
             '^' | '$' => (),
@@ -312,7 +335,6 @@ fn walk_rooms(input: &str) -> (usize, HashMap<(i32, i32), usize>) {
                 loc.1 -= 1;
                 rooms.entry(loc).or_insert(Room::default()).s = Some(true);
                 min_y = min(min_y, loc.1);
-
             }
             'E' => {
                 rooms.entry(loc).or_insert(Room::default()).e = Some(true);
@@ -351,10 +373,30 @@ fn walk_rooms(input: &str) -> (usize, HashMap<(i32, i32), usize>) {
         let start = to_check.remove(0);
         max_distance = max(max_distance, start.2);
         let room = rooms.entry((start.0, start.1)).or_insert(Room::default());
-        check_room(&room.n, &mut checked, &mut to_check, (start.0, start.1 - 1, start.2 + 1));
-        check_room(&room.e, &mut checked, &mut to_check, (start.0 + 1, start.1, start.2 + 1));
-        check_room(&room.s, &mut checked, &mut to_check, (start.0, start.1 + 1, start.2 + 1));
-        check_room(&room.w, &mut checked, &mut to_check, (start.0 - 1, start.1, start.2 + 1));
+        check_room(
+            &room.n,
+            &mut checked,
+            &mut to_check,
+            (start.0, start.1 - 1, start.2 + 1),
+        );
+        check_room(
+            &room.e,
+            &mut checked,
+            &mut to_check,
+            (start.0 + 1, start.1, start.2 + 1),
+        );
+        check_room(
+            &room.s,
+            &mut checked,
+            &mut to_check,
+            (start.0, start.1 + 1, start.2 + 1),
+        );
+        check_room(
+            &room.w,
+            &mut checked,
+            &mut to_check,
+            (start.0 - 1, start.1, start.2 + 1),
+        );
     }
     (max_distance, checked)
 }
@@ -370,14 +412,19 @@ fn walk_part2(input: &str) -> usize {
     distances.iter().filter(|(_, &d)| d >= 1000).count()
 }
 
-fn check_room(door: &Option<bool>, checked: &mut HashMap<(i32, i32), usize>, to_check: &mut Vec<(i32, i32, usize)>, chk: (i32, i32, usize)) {
+fn check_room(
+    door: &Option<bool>,
+    checked: &mut HashMap<(i32, i32), usize>,
+    to_check: &mut Vec<(i32, i32, usize)>,
+    chk: (i32, i32, usize),
+) {
     match door {
         Some(true) => {
             if !checked.contains_key(&(chk.0, chk.1)) {
                 checked.insert((chk.0, chk.1), chk.2);
                 to_check.push((chk.0, chk.1, chk.2));
             }
-        },
+        }
         _ => (),
     }
 }

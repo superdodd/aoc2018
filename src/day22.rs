@@ -1,11 +1,11 @@
 use aoc_runner_derive::aoc;
 //use std::cmp::min;
-use std::fmt;
-use std::fmt::Formatter;
-use std::fmt::Error;
-use std::fmt::Write;
 use std::cmp::max;
 use std::collections::VecDeque;
+use std::fmt;
+use std::fmt::Error;
+use std::fmt::Formatter;
+use std::fmt::Write;
 //use fnv::FnvHashSet;
 //use std::collections::HashSet;
 
@@ -83,9 +83,7 @@ struct Map {
 }
 
 impl Map {
-
     fn new(depth: usize, target: (usize, usize), limit: (usize, usize)) -> Self {
-
         let mut ret = Self {
             map: Vec::new(),
             depth,
@@ -149,7 +147,9 @@ impl Map {
                         (0, 0) => 0,
                         (x, 0) => x * 16807,
                         (0, y) => y * 48271,
-                        (x, y) => self.map[y][x - 1].erosion_level * self.map[y - 1][x].erosion_level,
+                        (x, y) => {
+                            self.map[y][x - 1].erosion_level * self.map[y - 1][x].erosion_level
+                        }
                     }
                 };
                 let erosion_level = (idx + self.depth) % 20183;
@@ -204,17 +204,18 @@ impl Map {
             _ => true,
         }
     }
-    
-    fn check_next(&mut self, start: &(usize, usize, Eqp), start_cost: usize, step: &(usize, usize, Eqp)) {
+
+    fn check_next(
+        &mut self,
+        start: &(usize, usize, Eqp),
+        start_cost: usize,
+        step: &(usize, usize, Eqp),
+    ) {
         if step == start {
             return;
         }
         let (x, y, e) = *step;
-        let step_cost = if start.2 == e {
-            1usize
-        } else {
-            7
-        };
+        let step_cost = if start.2 == e { 1usize } else { 7 };
         let new_path_cost = start_cost + step_cost;
 
         if let Some(t) = self.shortest_time {
@@ -227,7 +228,7 @@ impl Map {
         if !self.valid_state(x, y, e) {
             return;
         }
-        
+
         let mut loc = &mut self.map[y][x];
         match loc.paths[e.0] {
             Some(existing_path) if existing_path.0 <= new_path_cost => (),
@@ -278,12 +279,14 @@ impl Map {
             if start.0 > 0 {
                 self.check_next(&start, trace_back.0, &(start.0 - 1, start.1, start.2));
             }
-            self.check_next(&start,trace_back.0, &(start.0 + 1, start.1, start.2));
-            self.check_next(&start,trace_back.0, &(start.0, start.1 + 1, start.2));
+            self.check_next(&start, trace_back.0, &(start.0 + 1, start.1, start.2));
+            self.check_next(&start, trace_back.0, &(start.0, start.1 + 1, start.2));
         }
 
         //println!("{}", self.get_map_str());
-        if let Some(best_path) = &self.map[self.destination.1][self.destination.0].paths[(self.destination.2).0] {
+        if let Some(best_path) =
+            &self.map[self.destination.1][self.destination.0].paths[(self.destination.2).0]
+        {
             let mut cost = 0;
             let mut prev = self.destination;
             let mut curr = best_path.1;
@@ -390,7 +393,16 @@ M=.|=.|.|=.|=|=.
                 _ => panic!("Unknown map cell {}", map.map[t.1][t.0].cell),
             };
 
-            assert_eq!(t.3, map.valid_state(t.0, t.1, t.2), "({}, {}) {} + {}: expected {}", t.0, t.1, reg, eqp, t.3);
+            assert_eq!(
+                t.3,
+                map.valid_state(t.0, t.1, t.2),
+                "({}, {}) {} + {}: expected {}",
+                t.0,
+                t.1,
+                reg,
+                eqp,
+                t.3
+            );
         }
     }
 }

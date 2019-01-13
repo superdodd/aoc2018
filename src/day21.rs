@@ -37,7 +37,14 @@ fn find_r0_part2(_input: &str) -> u32 {
     'outer: loop {
         match reg_hist.iter().enumerate().find(|&item| *item.1 == r3) {
             Some((idx, _r3val)) => {
-                println!("r3={}, pos={}, len={}, regs={:?}, ... {:?}", r3, idx, reg_hist.len(), &reg_hist[0..10], &reg_hist[reg_hist.len()-10..]);
+                println!(
+                    "r3={}, pos={}, len={}, regs={:?}, ... {:?}",
+                    r3,
+                    idx,
+                    reg_hist.len(),
+                    &reg_hist[0..10],
+                    &reg_hist[reg_hist.len() - 10..]
+                );
                 break;
             }
             None => {

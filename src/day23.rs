@@ -1,11 +1,11 @@
-use aoc_runner_derive::{aoc,aoc_generator};
+use aoc_runner_derive::{aoc, aoc_generator};
 use num_traits::abs;
+use num_traits::signum;
 use regex::Regex;
-use std::cmp::min;
 use std::cmp::max;
+use std::cmp::min;
 use std::cmp::Ordering;
 use std::collections::binary_heap::BinaryHeap;
-use num_traits::signum;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct Nanobot {
@@ -16,7 +16,6 @@ struct Nanobot {
 }
 
 impl Nanobot {
-
     #[inline]
     fn is_in_range(&self, x: i32, y: i32, z: i32) -> bool {
         self.distance_to(x, y, z) <= self.range
@@ -73,7 +72,6 @@ fn closest_to_zero(left: i32, right: i32) -> i32 {
 }
 
 impl Region {
-
     fn update_min_dist_to_origin(&mut self) {
         let x = closest_to_zero(self.x_min, self.x_max);
         let y = closest_to_zero(self.y_min, self.y_max);
@@ -104,7 +102,12 @@ impl Region {
         z_min = min(z_min, z_max);
 
         let mut ret = Region {
-            x_min, x_max, y_min, y_max, z_min, z_max,
+            x_min,
+            x_max,
+            y_min,
+            y_max,
+            z_min,
+            z_max,
             volume: ((x_max - x_min + 1) * (y_max - y_min + 1) * (z_max - z_min + 1)) as usize,
             min_dist_to_origin: 0,
             lower_bound_bots: Vec::with_capacity(bots.len()),
@@ -129,7 +132,6 @@ impl Region {
     ///     bounds extended by the bot's range of the third axis, or
     ///   - The bot is within range of any corner of the region.
     fn bot_intersects(&self, bot: &Nanobot) -> bool {
-
         let xr = bot.x >= self.x_min && bot.x <= self.x_max;
         let xe = bot.x >= self.x_min - bot.range && bot.x <= self.x_max + bot.range;
         let yr = bot.y >= self.y_min && bot.y <= self.y_max;
@@ -157,7 +159,6 @@ impl Region {
             return xe;
         }
 
-
         // Finally, check if the bot is otherwise in range of any corner of the region.
         bot.is_in_range(self.x_min, self.y_min, self.z_min)
             || bot.is_in_range(self.x_min, self.y_min, self.z_max)
@@ -180,7 +181,7 @@ impl Region {
             && bot.distance_to(self.x_max, self.y_max, self.z_min) <= bot.range
             && bot.distance_to(self.x_max, self.y_max, self.z_max) <= bot.range
     }
-    
+
     fn split_region(&self) -> Vec<Region> {
         let xmid: i32 = (self.x_min + self.x_max) / 2;
         let ymid: i32 = (self.y_min + self.y_max) / 2;
@@ -192,44 +193,58 @@ impl Region {
         let za = (self.z_min, zmid);
         let zb = (zmid + 1, self.z_max);
         [
-            (xa, ya, za), (xa, ya, zb), (xa, yb, za), (xa, yb, zb),
-            (xb, ya, za), (xb, ya, zb), (xb, yb, za), (xb, yb, zb),
-        ].iter()
-            .filter(|(xr, yr, zr)| {
-                xr.0 <= xr.1 && yr.0 <= yr.1 && zr.0 <= zr.1
-                && (xr.0, xr.1, yr.0, yr.1, zr.0, zr.1) != (self.x_min, self.x_max, self.y_min, self.y_max, self.z_min, self.z_max)
-            })
-            .map(|(xr, yr, zr)| {
-                let mut ret = Region {
-                    x_min: xr.0,
-                    x_max: xr.1,
-                    y_min: yr.0,
-                    y_max: yr.1,
-                    z_min: zr.0,
-                    z_max: zr.1,
-                    volume: ((xr.1 - xr.0 + 1)*(yr.1 - yr.0 + 1)*(zr.1 - zr.0 + 1)) as usize,
-                    // All bots that are in the lower bound of the pre-split region are also in
-                    // the lower bound of the post-split region.  Some bots may move from the upper
-                    // bound list to the lower bound list, or out of the upper bound list entirely.
-                    // All bots that are in the lower bound list of the post-split region are in
-                    // either the upper or lower bound list of the pre-split region.
-                    min_dist_to_origin: 0,
-                    lower_bound_bots: self.lower_bound_bots.to_vec(),
-                    // If a bot is in the post-split upper bound list then it was also in the
-                    // pre-split upper bound list.
-                    upper_bound_bots: Vec::with_capacity(self.upper_bound_bots.len()),
-                };
-                ret.update_min_dist_to_origin();
-                for b in &self.upper_bound_bots {
-                    if ret.covered_by_bot(b) {
-                        ret.lower_bound_bots.push(*b);
-                    } else if ret.bot_intersects(b) {
-                        ret.upper_bound_bots.push(*b);
-                    }
+            (xa, ya, za),
+            (xa, ya, zb),
+            (xa, yb, za),
+            (xa, yb, zb),
+            (xb, ya, za),
+            (xb, ya, zb),
+            (xb, yb, za),
+            (xb, yb, zb),
+        ]
+        .iter()
+        .filter(|(xr, yr, zr)| {
+            xr.0 <= xr.1
+                && yr.0 <= yr.1
+                && zr.0 <= zr.1
+                && (xr.0, xr.1, yr.0, yr.1, zr.0, zr.1)
+                    != (
+                        self.x_min, self.x_max, self.y_min, self.y_max, self.z_min, self.z_max,
+                    )
+        })
+        .map(|(xr, yr, zr)| {
+            let mut ret = Region {
+                x_min: xr.0,
+                x_max: xr.1,
+                y_min: yr.0,
+                y_max: yr.1,
+                z_min: zr.0,
+                z_max: zr.1,
+                volume: ((xr.1 - xr.0 + 1) * (yr.1 - yr.0 + 1) * (zr.1 - zr.0 + 1)) as usize,
+                // All bots that are in the lower bound of the pre-split region are also in
+                // the lower bound of the post-split region.  Some bots may move from the upper
+                // bound list to the lower bound list, or out of the upper bound list entirely.
+                // All bots that are in the lower bound list of the post-split region are in
+                // either the upper or lower bound list of the pre-split region.
+                min_dist_to_origin: 0,
+                lower_bound_bots: self.lower_bound_bots.to_vec(),
+                // If a bot is in the post-split upper bound list then it was also in the
+                // pre-split upper bound list.
+                upper_bound_bots: Vec::with_capacity(self.upper_bound_bots.len()),
+            };
+            ret.update_min_dist_to_origin();
+            for b in &self.upper_bound_bots {
+                if ret.covered_by_bot(b) {
+                    ret.lower_bound_bots.push(*b);
+                } else if ret.bot_intersects(b) {
+                    ret.upper_bound_bots.push(*b);
                 }
+            }
 
-                ret
-            }).into_iter().collect::<Vec<Region>>()
+            ret
+        })
+        .into_iter()
+        .collect::<Vec<Region>>()
     }
 }
 
@@ -242,8 +257,13 @@ impl Ord for Region {
         // - Size (smaller volume preferred)
         // - min corner (smaller preferred)
         // - max corner (smaller preferred)
-        (self.lower_bound_bots.len() + self.upper_bound_bots.len()).cmp(&(other.lower_bound_bots.len() + other.upper_bound_bots.len()))
-            .then(self.lower_bound_bots.len().cmp(&other.lower_bound_bots.len()))
+        (self.lower_bound_bots.len() + self.upper_bound_bots.len())
+            .cmp(&(other.lower_bound_bots.len() + other.upper_bound_bots.len()))
+            .then(
+                self.lower_bound_bots
+                    .len()
+                    .cmp(&other.lower_bound_bots.len()),
+            )
             .then(other.min_dist_to_origin.cmp(&self.min_dist_to_origin))
             .then(other.volume.cmp(&self.volume))
             .then(other.x_min.cmp(&self.x_min))
@@ -266,7 +286,9 @@ fn solve_part1(bots: &Vec<Nanobot>) -> usize {
     let ref_bot = bots.iter().max_by(|&a, &b| a.range.cmp(&b.range)).unwrap();
     println!("Max range bot: {:?}", ref_bot);
 
-    bots.iter().filter(|&b| ref_bot.is_in_range(b.x, b.y, b.z)).count()
+    bots.iter()
+        .filter(|&b| ref_bot.is_in_range(b.x, b.y, b.z))
+        .count()
 }
 
 #[aoc(day23, part2)]
@@ -288,8 +310,12 @@ fn solve_part2(bots: &Vec<Nanobot>) -> usize {
             // previous best we've found so far.
             best_region = match best_region.as_ref().map(|b| b.cmp(&region)) {
                 None | Some(Ordering::Less) => {
-                    println!("Loop {}: Found better region: count={}, dist={}",
-                        loop_count, region.lower_bound_bots.len(), region.min_dist_to_origin);
+                    println!(
+                        "Loop {}: Found better region: count={}, dist={}",
+                        loop_count,
+                        region.lower_bound_bots.len(),
+                        region.min_dist_to_origin
+                    );
                     Some(region)
                 }
                 _ => best_region,
@@ -300,8 +326,19 @@ fn solve_part2(bots: &Vec<Nanobot>) -> usize {
         for s in region.split_region() {
             match best_region.as_ref() {
                 // If this split of the region has no chance of being better than the currently-known best, discard it.
-                Some(b) if s.lower_bound_bots.len() + s.upper_bound_bots.len() < b.lower_bound_bots.len() => (),
-                Some(b) if s.lower_bound_bots.len() + s.upper_bound_bots.len() == b.lower_bound_bots.len() && s.min_dist_to_origin >= b.min_dist_to_origin => (),
+                Some(b)
+                    if s.lower_bound_bots.len() + s.upper_bound_bots.len()
+                        < b.lower_bound_bots.len() =>
+                {
+                    ()
+                }
+                Some(b)
+                    if s.lower_bound_bots.len() + s.upper_bound_bots.len()
+                        == b.lower_bound_bots.len()
+                        && s.min_dist_to_origin >= b.min_dist_to_origin =>
+                {
+                    ()
+                }
                 // Otherwise, put it back on the pile for further examination.
                 _ => region_heap.push(s),
             }
@@ -309,8 +346,13 @@ fn solve_part2(bots: &Vec<Nanobot>) -> usize {
     }
 
     if let Some(r) = best_region {
-        println!("Loop {}: Best region found. count={}, dist={}, vol={}",
-            loop_count, r.lower_bound_bots.len(), r.min_dist_to_origin, r.volume);
+        println!(
+            "Loop {}: Best region found. count={}, dist={}, vol={}",
+            loop_count,
+            r.lower_bound_bots.len(),
+            r.min_dist_to_origin,
+            r.volume
+        );
         return r.min_dist_to_origin;
     }
     unreachable!()
@@ -322,7 +364,7 @@ mod tests {
 
     #[test]
     fn test_input() {
-        let input =  "pos=<0,0,0>, r=4
+        let input = "pos=<0,0,0>, r=4
                             pos=<1,0,0>, r=1
                             pos=<4,0,0>, r=3
                             pos=<0,2,0>, r=1
@@ -337,7 +379,7 @@ mod tests {
 
     #[test]
     fn test_solve_part1() {
-        let input =  "pos=<0,0,0>, r=4
+        let input = "pos=<0,0,0>, r=4
                             pos=<1,0,0>, r=1
                             pos=<4,0,0>, r=3
                             pos=<0,2,0>, r=1
@@ -363,51 +405,59 @@ mod tests {
             range: 3,
             x: 3,
             y: 3,
-            z: 3
+            z: 3,
         };
-        let test_region = Region{
+        let test_region = Region {
             x_min: 0,
             x_max: 3,
             y_min: 0,
             y_max: 3,
             z_min: 0,
             z_max: 3,
-            volume: 4*4*4,
+            volume: 4 * 4 * 4,
             min_dist_to_origin: 0,
             lower_bound_bots: vec![bot1],
-            upper_bound_bots: vec![bot2]
+            upper_bound_bots: vec![bot2],
         };
-        assert_eq!(test_region.split_region(),
-        vec![
-            (0, 1, 0, 1, 0, 1, vec![bot1], vec![]),
-            (0, 1, 0, 1, 2, 3, vec![bot1], vec![]),
-            (0, 1, 2, 3, 0, 1, vec![bot1], vec![]),
-            (0, 1, 2, 3, 2, 3, vec![bot1], vec![bot2]),
-            (2, 3, 0, 1, 0, 1, vec![bot1], vec![]),
-            (2, 3, 0, 1, 2, 3, vec![bot1], vec![bot2]),
-            (2, 3, 2, 3, 0, 1, vec![bot1], vec![bot2]),
-            (2, 3, 2, 3, 2, 3, vec![bot1, bot2], vec![])
-        ].into_iter().map(|(x_min, x_max, y_min, y_max, z_min, z_max, lower_bound_bots, upper_bound_bots)| {
-            let mut ret = Region {
-                x_min,
-                x_max,
-                y_min,
-                y_max,
-                z_min,
-                z_max,
-                volume: ((x_max - x_min + 1) * (y_max - y_min + 1) * (z_max - z_min + 1)) as usize,
-                min_dist_to_origin: 0,
-                lower_bound_bots,
-                upper_bound_bots
-            };
-            ret.update_min_dist_to_origin();
-            ret
-        }).collect::<Vec<Region>>());
+        assert_eq!(
+            test_region.split_region(),
+            vec![
+                (0, 1, 0, 1, 0, 1, vec![bot1], vec![]),
+                (0, 1, 0, 1, 2, 3, vec![bot1], vec![]),
+                (0, 1, 2, 3, 0, 1, vec![bot1], vec![]),
+                (0, 1, 2, 3, 2, 3, vec![bot1], vec![bot2]),
+                (2, 3, 0, 1, 0, 1, vec![bot1], vec![]),
+                (2, 3, 0, 1, 2, 3, vec![bot1], vec![bot2]),
+                (2, 3, 2, 3, 0, 1, vec![bot1], vec![bot2]),
+                (2, 3, 2, 3, 2, 3, vec![bot1, bot2], vec![])
+            ]
+            .into_iter()
+            .map(
+                |(x_min, x_max, y_min, y_max, z_min, z_max, lower_bound_bots, upper_bound_bots)| {
+                    let mut ret = Region {
+                        x_min,
+                        x_max,
+                        y_min,
+                        y_max,
+                        z_min,
+                        z_max,
+                        volume: ((x_max - x_min + 1) * (y_max - y_min + 1) * (z_max - z_min + 1))
+                            as usize,
+                        min_dist_to_origin: 0,
+                        lower_bound_bots,
+                        upper_bound_bots,
+                    };
+                    ret.update_min_dist_to_origin();
+                    ret
+                }
+            )
+            .collect::<Vec<Region>>()
+        );
     }
 
     #[test]
     fn test_solve_part2() {
-        let input =  "pos=<10,12,12>, r=2
+        let input = "pos=<10,12,12>, r=2
                             pos=<12,14,12>, r=2
                             pos=<16,12,12>, r=4
                             pos=<14,14,14>, r=6

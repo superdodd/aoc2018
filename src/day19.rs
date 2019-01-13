@@ -28,7 +28,7 @@ struct CpuState {
 
 impl CpuState {
     fn new() -> CpuState {
-        CpuState{
+        CpuState {
             ip: 0,
             ip_reg: 0,
             reg: [0; 6],
@@ -46,7 +46,7 @@ impl CpuState {
             if words[0] == "#ip" {
                 ret.ip_reg = words[1].parse().unwrap();
             } else {
-                ret.program.push(Instr{
+                ret.program.push(Instr {
                     opcode: words[0].to_string(),
                     arg1: words[1].parse().unwrap(),
                     arg2: words[2].parse().unwrap(),
@@ -100,14 +100,12 @@ struct Instr {
     out: usize,
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn get_test_input() -> CpuState {
-        let input =
-            "#ip 0
+        let input = "#ip 0
             seti 5 0 1
             seti 6 0 2
             addi 0 1 0

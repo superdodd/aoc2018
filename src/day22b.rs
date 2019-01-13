@@ -1,8 +1,8 @@
 use aoc_runner_derive::aoc;
-use std::collections::binary_heap::BinaryHeap;
-use std::cmp::Ordering;
-use std::cmp::max;
 use num_traits::abs;
+use std::cmp::max;
+use std::cmp::Ordering;
+use std::collections::binary_heap::BinaryHeap;
 
 const DEPTH: usize = 11820;
 const TARGET: (usize, usize) = (7, 782);
@@ -28,13 +28,16 @@ struct Loc {
     terrain_type: Terrain,
 
     cost: usize,
-    step_back: (usize, usize, Equipment)
+    step_back: (usize, usize, Equipment),
 }
 
 impl Ord for Loc {
     fn cmp(&self, other: &Self) -> Ordering {
         Ordering::Equal
-            .then((other.x + other.y + other.target_distance).cmp(&(self.x + self.y + self.target_distance)))
+            .then(
+                (other.x + other.y + other.target_distance)
+                    .cmp(&(self.x + self.y + self.target_distance)),
+            )
             .then(other.cost.cmp(&self.cost))
             //.then((other.cost + other.target_distance).cmp(&(self.cost + self.target_distance)))
             //.then(self.cost.cmp(&other.cost))
@@ -64,13 +67,15 @@ struct Map {
 }
 
 impl Map {
-
     fn next_steps(&self, loc: &Loc) -> Vec<Loc> {
         let mut ret = Vec::with_capacity(6);
         let step_back = (loc.x, loc.y, loc.e);
 
         for eq in 0usize..3 {
-            if loc.e != eq && loc.terrain_type != eq && self.map[loc.y][loc.x][eq].cost > loc.cost + 7 {
+            if loc.e != eq
+                && loc.terrain_type != eq
+                && self.map[loc.y][loc.x][eq].cost > loc.cost + 7
+            {
                 let mut next_step = loc.clone();
                 next_step.cost += 7;
                 next_step.step_back = step_back.clone();
@@ -124,7 +129,7 @@ impl Map {
         }
 
         let old_y = self.map.len();
-        let new_y = if y_max + 1 < old_y { old_y } else { y_max * 2};
+        let new_y = if y_max + 1 < old_y { old_y } else { y_max * 2 };
         let old_x = if old_y == 0 { 0 } else { self.map[0].len() };
         let new_x = if x_max + 1 < old_x { old_x } else { x_max * 2 };
 
@@ -141,22 +146,56 @@ impl Map {
                     (x, y) if (x, y) == self.target => 0,
                     (0, y) => y * 48271,
                     (x, 0) => x * 16807,
-                    (x, y) => &self.map[y-1][x][EQP_TORCH as usize].erosion_level * &self.map[y][x-1][EQP_TORCH as usize].erosion_level,
+                    (x, y) => {
+                        &self.map[y - 1][x][EQP_TORCH as usize].erosion_level
+                            * &self.map[y][x - 1][EQP_TORCH as usize].erosion_level
+                    }
                 };
                 let erosion_level = (geo_idx + self.depth) % 20183;
-                let target_distance = (abs(self.target.0 as i32 - x as i32) + abs(self.target.1 as i32 - y as i32)) as usize;
+                let target_distance = (abs(self.target.0 as i32 - x as i32)
+                    + abs(self.target.1 as i32 - y as i32))
+                    as usize;
                 let target = self.target;
                 self.map[y].push(vec![
-                    Loc{ x, y, e: 0, erosion_level, terrain_type: erosion_level % 3, cost: std::usize::MAX, step_back: (0, 0, EQP_TORCH), target_distance, target },
-                    Loc{ x, y, e: 1, erosion_level, terrain_type: erosion_level % 3, cost: std::usize::MAX, step_back: (0, 0, EQP_TORCH), target_distance, target },
-                    Loc{ x, y, e: 2, erosion_level, terrain_type: erosion_level % 3, cost: std::usize::MAX, step_back: (0, 0, EQP_TORCH), target_distance, target },
+                    Loc {
+                        x,
+                        y,
+                        e: 0,
+                        erosion_level,
+                        terrain_type: erosion_level % 3,
+                        cost: std::usize::MAX,
+                        step_back: (0, 0, EQP_TORCH),
+                        target_distance,
+                        target,
+                    },
+                    Loc {
+                        x,
+                        y,
+                        e: 1,
+                        erosion_level,
+                        terrain_type: erosion_level % 3,
+                        cost: std::usize::MAX,
+                        step_back: (0, 0, EQP_TORCH),
+                        target_distance,
+                        target,
+                    },
+                    Loc {
+                        x,
+                        y,
+                        e: 2,
+                        erosion_level,
+                        terrain_type: erosion_level % 3,
+                        cost: std::usize::MAX,
+                        step_back: (0, 0, EQP_TORCH),
+                        target_distance,
+                        target,
+                    },
                 ]);
             }
         }
     }
 
     fn new(depth: usize, target: (usize, usize), limit: (usize, usize)) -> Self {
-
         let mut ret = Self {
             map: Vec::new(),
             depth,
@@ -202,7 +241,6 @@ impl Map {
                 continue;
             }
 
-
             // Add the next path steps to the heap for future examination.
             self.ensure_size(loc.x + 1, loc.y + 1);
             self.to_check.extend(self.next_steps(&loc).into_iter());
@@ -215,31 +253,37 @@ impl Map {
             curr = self.map[curr.step_back.1][curr.step_back.0][curr.step_back.2 as usize];
         }
         /*
-        for loc in path.iter().rev() {
-            let eq_char = match loc.e {
-                EQP_T => 'T',
-                EQP_C => 'C',
-                EQP_E => 'E',
-                _ => '?',
-            };
-            println!("({}, {}) {}", loc.x, loc.y, eq_char);
-        }
-*/
+                for loc in path.iter().rev() {
+                    let eq_char = match loc.e {
+                        EQP_T => 'T',
+                        EQP_C => 'C',
+                        EQP_E => 'E',
+                        _ => '?',
+                    };
+                    println!("({}, {}) {}", loc.x, loc.y, eq_char);
+                }
+        */
 
         println!("Complete. Loops={}", check_count);
         if let Some(ref t) = self.shortest_time {
-            assert_eq!(self.map[self.target.1][self.target.0][EQP_TORCH as usize].cost, *t);
+            assert_eq!(
+                self.map[self.target.1][self.target.0][EQP_TORCH as usize].cost,
+                *t
+            );
             return *t;
         } else {
             unreachable!()
         }
     }
-
 }
 
 #[aoc(day22, part2, reimpl)]
 fn solve_part2_reimpl(_input: &str) -> usize {
-    let mut map = Map::new(DEPTH, TARGET, (max(TARGET.0, TARGET.1), max(TARGET.0, TARGET.1)));
+    let mut map = Map::new(
+        DEPTH,
+        TARGET,
+        (max(TARGET.0, TARGET.1), max(TARGET.0, TARGET.1)),
+    );
     map.find_shortest_time()
 }
 
