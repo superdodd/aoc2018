@@ -5,6 +5,7 @@ use std::fmt;
 use std::fmt::Error;
 use std::fmt::Formatter;
 use std::str;
+use num_traits::abs;
 
 #[derive(PartialEq, Eq, Debug, Clone, Default)]
 struct UnitGroup {
@@ -24,7 +25,7 @@ impl Ord for UnitGroup {
         let compare_by_elem = |a: &Vec<String>, b: &Vec<String>| {
             a.iter()
                 .zip(b.iter())
-                .find(|(&s, &o)| s != o)
+                .find(|&(s, o)| s != o)
                 .map(|(s, o)| s.cmp(o))
                 .unwrap_or(Ordering::Equal)
         };
@@ -82,12 +83,12 @@ impl fmt::Display for UnitGroup {
 
 impl UnitGroup {
     fn parse(input: &str, army: &str, group_number: usize) -> UnitGroup {
-        let line_re = Regex::new(r"(?P<units>\d+) units each with (?P<hp>\d+) hit points (?P<mods>\((?:(?:weak|immune) to (?:[^;)]+)(?:; )?)+\))? with an attack that does (?P<dmg>\d+) (?P<type>[^\s]+) damage at initiative (?P<init>\d+)").unwrap();
+        let line_re = Regex::new(r"(?P<units>\d+) units each with (?P<hp>\d+) hit points (?P<mods>\((?:(?:weak|immune) to (?:[^;)]+)(?:; )?)+\) )?with an attack that does (?P<dmg>\d+) (?P<type>[^\s]+) damage at initiative (?P<init>\d+)").unwrap();
         let captures = line_re.captures(input).unwrap();
         let mut weak_to: Vec<String> = Vec::new();
         let mut immune_to: Vec<String> = Vec::new();
         if let Some(mods) = captures.name("mods") {
-            let mod_tuples = mods.as_str()[1..&mods.as_str().len() - 1]
+            let mod_tuples = mods.as_str()[1..&mods.as_str().len() - 2]
                 .split("; ")
                 .flat_map(|m: &str| {
                     let words: Vec<&str> = m.split(" ").collect();
@@ -201,12 +202,75 @@ fn fight(units: &mut Vec<UnitGroup>) {
             .map(|(i, _u)| i);
     }
 
-    // Units attack in initiative order.
+    // Units attack in initiative order, highest to lowest.
+    let max_initiative = units.iter().map(|u| u.initiative).max().unwrap();
+    for initiative in (0..=max_initiative).rev() {
+        if let Some((attacker_idx, attacker)) = units
+            .iter()
+            .enumerate()
+            .find(|&(_i, u)| u.initiative == initiative)
+        {
+            if let Some(defender_idx) = target_list[attacker_idx] {
+                if attacker.units > 0 {
+                    // Only attack if we didn't already get eliminated this round
+                    let mut defender = units[defender_idx].clone();
+                    attacker.attack(&mut defender);
+                    units[defender_idx] = defender;
+                }
+            }
+        }
+    }
+
+    // Clean up the units list, removing any groups that have hp = 0.
+    units.retain(|u| u.units > 0);
+
+    // Ensure the units list is still sorted; as groups take damage their effective power decreases.
+    units.sort();
 }
 
 #[aoc(day24, part1)]
 fn solve_part1(input: &Vec<UnitGroup>) -> usize {
-    0
+    let mut units = input.to_vec();
+
+    while {
+        let cnt = units.iter().filter(|&u| u.army == "Infection:").count();
+        cnt > 0 && cnt < units.len()
+    } {
+        fight(&mut units);
+    }
+    units.iter().map(|u| u.units).sum()
+}
+
+#[aoc(day24, part2)]
+fn solve_part2(input: &Vec<UnitGroup>) -> usize {
+
+    let mut lower_bound: usize = 0;
+    let mut upper_bound: usize = input.iter().map(|u| u.hp * u.units).max().unwrap_or(1);
+    let mut upper_bound_units: usize = 0;
+
+    while upper_bound - lower_bound > 1 {
+        let boost = (upper_bound + lower_bound) / 2;
+        let mut units = input.clone();
+        for u in units.iter_mut() {
+            u.damage += boost;
+        }
+
+        while {
+            let cnt = units.iter().filter(|u| u.army == "Infection:").count();
+            cnt > 0 && cnt < units.len()
+        } {
+            fight(&mut units);
+        }
+
+        if units.iter().find(|&u| u.army == "Immune System:").is_some() {
+            upper_bound = boost;
+            upper_bound_units = units.iter().map(|u| u.units).sum();
+        } else {
+            lower_bound = boost;
+        }
+    }
+
+    upper_bound_units
 }
 
 #[cfg(test)]
@@ -242,7 +306,7 @@ mod tests {
 
         Infection:
         801 units each with 4706 hit points (weak to radiation) with an attack that does 116 bludgeoning damage at initiative 1
-        4485 units each with 2961 hit points (immune to radiation; weak to fire, cold) with an attack that does 12 slashing damage at initiative 4
+        4485 units each with 2961 hit points with an attack that does 12 slashing damage at initiative 4
         ";
         let units = parse_input(input);
 
@@ -266,28 +330,63 @@ mod tests {
 
         let units_list = |l: &Vec<UnitGroup>| {
             l.iter()
-                .map(|ug| (ug.group_number, ug.units))
-                .collect::<Vec<(usize, usize)>>()
+                .map(|ug| (ug.army[0..3].to_string(), ug.group_number, ug.units))
+                .collect::<Vec<(String, usize, usize)>>()
         };
 
-        /*
-        17*5390=91,630
-        989*1274=1,259,986
-        801*4706=3,769,506
-        4485*2961=13,280,085
-        */
         assert_eq!(
-            vec![(2, 4485), (1, 801), (2, 989), (1, 17)],
+            vec![
+                ("Imm".to_string(), 2, 989),
+                ("Inf".to_string(), 2, 4485),
+                ("Imm".to_string(), 1, 17),
+                ("Inf".to_string(), 1, 801)
+            ],
             units_list(&units)
         );
 
         fight(&mut units);
-        /*
-        905*1274=1,152,970
-        797*4706=3,750,682
-        4434*2961=13,129,074
-        */
+        assert_eq!(
+            vec![
+                ("Imm".to_string(), 2, 905),
+                ("Inf".to_string(), 2, 4434),
+                ("Inf".to_string(), 1, 797)
+            ],
+            units_list(&units)
+        );
 
-        assert_eq!(vec![(2, 905), (1, 797), (2, 4434)], units_list(&units));
+        fight(&mut units);
+        assert_eq!(
+            vec![
+                ("Imm".to_string(), 2, 761),
+                ("Inf".to_string(), 2, 4434),
+                ("Inf".to_string(), 1, 793)
+            ],
+            units_list(&units)
+        );
+
+        for _ in 0..6 {
+            fight(&mut units);
+        }
+
+        assert_eq!(
+            vec![("Inf".to_string(), 2, 4434), ("Inf".to_string(), 1, 782)],
+            units_list(&units)
+        );
+    }
+
+    #[test]
+    fn test_solve_part1() {
+        let input = "
+        Immune System:
+        17 units each with 5390 hit points (weak to radiation, bludgeoning) with an attack that does 4507 fire damage at initiative 2
+        989 units each with 1274 hit points (immune to fire; weak to bludgeoning, slashing) with an attack that does 25 slashing damage at initiative 3
+
+        Infection:
+        801 units each with 4706 hit points (weak to radiation) with an attack that does 116 bludgeoning damage at initiative 1
+        4485 units each with 2961 hit points (immune to radiation; weak to fire, cold) with an attack that does 12 slashing damage at initiative 4
+        ";
+
+        let units = parse_input(input);
+        assert_eq!(5216, solve_part1(&units))
     }
 }
