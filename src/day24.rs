@@ -5,7 +5,6 @@ use std::fmt;
 use std::fmt::Error;
 use std::fmt::Formatter;
 use std::str;
-use num_traits::abs;
 
 #[derive(PartialEq, Eq, Debug, Clone, Default)]
 struct UnitGroup {
@@ -243,7 +242,6 @@ fn solve_part1(input: &Vec<UnitGroup>) -> usize {
 
 #[aoc(day24, part2)]
 fn solve_part2(input: &Vec<UnitGroup>) -> usize {
-
     let mut lower_bound: usize = 0;
     let mut upper_bound: usize = input.iter().map(|u| u.hp * u.units).max().unwrap_or(1);
     let mut upper_bound_units: usize = 0;
@@ -252,22 +250,39 @@ fn solve_part2(input: &Vec<UnitGroup>) -> usize {
         let boost = (upper_bound + lower_bound) / 2;
         let mut units = input.clone();
         for u in units.iter_mut() {
-            u.damage += boost;
+            if u.army == "Immune System:" {
+                u.damage += boost;
+            }
         }
 
+        //let mut round: usize = 0;
+        let mut cnt: usize;
+        let mut prev_unit_count = units.iter().map(|u| u.units).sum::<usize>();
         while {
-            let cnt = units.iter().filter(|u| u.army == "Infection:").count();
+            cnt = units.iter().filter(|u| u.army == "Infection:").count();
             cnt > 0 && cnt < units.len()
         } {
-            fight(&mut units);
-        }
+            {
+                fight(&mut units);
+            }
+            //round += 1;
+            let unit_count = units.iter().map(|u| u.units).sum::<usize>();
 
-        if units.iter().find(|&u| u.army == "Immune System:").is_some() {
+            if unit_count == prev_unit_count {
+                //println!("Round {} - same unit count as previous round; it's a draw!", round);
+                break;
+            }
+            prev_unit_count = unit_count;
+        }
+        let won = units.iter().find(|&u| u.army == "Infection:").is_none();
+
+        if won {
             upper_bound = boost;
             upper_bound_units = units.iter().map(|u| u.units).sum();
         } else {
             lower_bound = boost;
         }
+        //println!("won={} - {}, {}", won, lower_bound, upper_bound);
     }
 
     upper_bound_units
